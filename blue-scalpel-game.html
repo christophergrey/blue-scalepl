@@ -1,0 +1,3074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OR-454: The Blue Scalpel | Neurosurgery Physics Simulator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#03080f;color:#c8dcea;font-family:'Courier New',monospace;overflow:hidden;height:100vh;user-select:none;}
+#app{display:flex;flex-direction:column;height:100vh;}
+
+/* ── HEADER ── */
+#hdr{display:flex;align-items:center;gap:12px;padding:6px 16px;background:#050d1c;border-bottom:1px solid #0e2a4a;flex-shrink:0;min-height:62px;}
+#pt-name{font-size:11px;color:#7a9ab8;letter-spacing:1px;white-space:nowrap;}
+#pt-name span{font-size:14px;color:#ddeeff;display:block;letter-spacing:2px;}
+#health-wrap{flex:1;max-width:240px;}
+#health-label{font-size:9px;color:#7a9ab8;letter-spacing:1px;margin-bottom:3px;}
+#health-bar-bg{height:10px;background:#0a1a2a;border-radius:3px;border:1px solid #1a3a5a;overflow:hidden;}
+#health-bar{height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#4ade80);border-radius:3px;transition:width .3s;}
+#vitals-row{display:flex;gap:10px;flex:1;}
+.vital{text-align:center;min-width:60px;}
+.vital-lbl{font-size:8px;color:#4a6a82;letter-spacing:1px;}
+.vital-val{font-size:15px;font-weight:bold;color:#7de8b0;letter-spacing:1px;line-height:1.2;}
+.vital-val.warn{color:#fbbf24;}
+.vital-val.crit{color:#ef4444;animation:blink .5s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+#timer-box{min-width:110px;text-align:center;padding:4px 10px;border:1px solid #1a3a5a;border-radius:4px;background:#040c18;}
+#timer-label{font-size:8px;color:#4a6a82;letter-spacing:2px;}
+#timer-val{font-size:22px;color:#ef4444;font-weight:bold;letter-spacing:2px;}
+#stage-label{font-size:9px;color:#5ba4ff;letter-spacing:2px;text-align:right;min-width:80px;}
+
+/* ── VOICE CONTROLS ── */
+#voice-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+#mute-btn{background:#040c18;border:1px solid #1a3a5a;color:#7de8b0;font-size:16px;cursor:pointer;border-radius:4px;padding:4px 8px;transition:all .2s;line-height:1;}
+#mute-btn:hover{border-color:#5ba4ff;}
+#mute-btn.muted{color:#4a6a82;border-color:#0e2a4a;}
+#voice-select{background:#040c18;border:1px solid #1a3a5a;color:#7a9ab8;font-size:9px;font-family:'Courier New',monospace;padding:3px 5px;border-radius:3px;cursor:pointer;max-width:130px;}
+#speaking-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;opacity:0;transition:opacity .2s;flex-shrink:0;}
+#speaking-dot.active{opacity:1;animation:speakPulse .6s infinite;}
+@keyframes speakPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
+
+/* ── MAIN AREA ── */
+#main-area{display:flex;flex:1;overflow:hidden;}
+#canvas-wrap{flex:1;position:relative;background:#03080f;}
+canvas#gc{display:block;width:100%;height:100%;}
+
+/* ── SIDEBAR ── */
+#sidebar{width:310px;flex-shrink:0;display:flex;flex-direction:column;background:#040c18;border-left:1px solid #0e2a4a;overflow-y:auto;}
+.spanel{border-bottom:1px solid #0e2a4a;padding:12px;}
+.spanel-title{font-size:9px;letter-spacing:2px;color:#5ba4ff;text-transform:uppercase;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid #0e2a4a44;}
+
+/* narration panel */
+#narr-panel{border-bottom:1px solid #0e2a4a;padding:12px;border-left:3px solid #1a4a8a;transition:border-left-color .4s;}
+#narr-panel.action-pending{border-left-color:#fbbf24;}
+#narr-speaker{font-size:9px;color:#5ba4ff;letter-spacing:1px;margin-bottom:6px;}
+#narr-text{font-size:13px;line-height:1.8;color:#b0c8de;min-height:80px;}
+
+/* action box */
+#action-box{display:none;margin-top:10px;background:#0d1a08;border:1px solid #fbbf24;border-radius:4px;padding:8px 10px;font-size:11px;color:#fbbf24;letter-spacing:.5px;line-height:1.6;animation:actionPulse 2s ease-in-out infinite;}
+#action-box.show{display:block;}
+#action-box-arrow{font-size:14px;margin-right:5px;}
+@keyframes actionPulse{0%,100%{box-shadow:0 0 6px rgba(251,191,36,.2);}50%{box-shadow:0 0 16px rgba(251,191,36,.5);}}
+
+/* formula panel */
+.fbox{background:#020810;border-left:3px solid #fbbf24;padding:7px 9px;border-radius:3px;margin:6px 0;font-size:13px;color:#fbbf24;letter-spacing:.5px;}
+.frow{display:flex;justify-content:space-between;font-size:10px;padding:3px 0;border-bottom:1px solid #0e2a4a33;}
+.fl{color:#4a6a82;}.fv{color:#7de8b0;font-weight:bold;}.fw{color:#ef4444;}
+
+/* controls */
+#ctrl-area{padding:12px;display:flex;flex-direction:column;gap:8px;}
+.tool-btn{padding:10px 12px;border-radius:4px;cursor:pointer;font-family:'Courier New',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;transition:all .2s;border:1px solid;width:100%;}
+.tool-btn.primary{background:#0d2a5a;border-color:#5ba4ff;color:#c8e4ff;}
+.tool-btn.primary:hover{background:#1040a0;}
+.tool-btn.danger{background:#2a0808;border-color:#ef4444;color:#ffb0b0;}
+.tool-btn.danger:hover{background:#4a1010;}
+.tool-btn.success{background:#082a10;border-color:#22c55e;color:#a0ffb0;}
+.tool-btn.warn-btn{background:#2a1a00;border-color:#fbbf24;color:#ffe090;}
+.tool-btn:disabled{background:#050d18;border-color:#1a2a3a;color:#2a3a4a;cursor:not-allowed;}
+.wave-choice{padding:8px 10px;border-radius:4px;cursor:pointer;font-size:11px;border:1px solid #1a2a3a;background:#020810;display:flex;justify-content:space-between;align-items:center;transition:all .2s;}
+.wave-choice:hover{border-color:#5ba4ff;}
+.wave-choice.selected{border-color:#5ba4ff;background:#06101e;}
+.wave-choice.correct{border-color:#22c55e;background:#041208;color:#22c55e;}
+.wave-choice.wrong{border-color:#ef4444;background:#120404;color:#ef4444;}
+.vsel-row{padding:8px 10px;border:1px solid #1a2a3a;border-radius:4px;cursor:pointer;background:#020810;font-size:10px;display:flex;justify-content:space-between;transition:all .2s;}
+.vsel-row:hover:not(.done){border-color:#5ba4ff;}
+.vsel-row.active{border-color:#5ba4ff;background:#06101e;}
+.vsel-row.sealed{border-color:#22c55e;background:#041208;cursor:default;}
+.vsel-row.damaged-v{border-color:#ef4444;background:#120404;cursor:default;}
+.slider-group{margin-top:6px;}
+.slider-group label{font-size:9px;color:#4a6a82;display:block;margin-bottom:3px;}
+input[type=range]{width:100%;accent-color:#5ba4ff;}
+#pulse-display{font-size:11px;text-align:right;margin-top:2px;}
+.ref-item{font-size:9px;color:#3a5a72;line-height:1.5;margin-bottom:4px;}
+.ref-item span{color:#5a7a92;}
+
+/* ── HIGHLIGHT SYSTEM ── */
+.hl{outline:2px solid #fbbf24 !important;outline-offset:3px;animation:hlPulse 1.2s ease-in-out infinite;box-shadow:0 0 12px rgba(251,191,36,.35) !important;}
+@keyframes hlPulse{0%,100%{outline-color:#fbbf24;box-shadow:0 0 8px rgba(251,191,36,.3);}50%{outline-color:#ffe080;box-shadow:0 0 20px rgba(251,191,36,.6);}}
+.tool-btn.hl{animation:btnHlPulse 0.9s ease-in-out infinite !important;outline:3px solid #fbbf24 !important;outline-offset:4px;position:relative;}
+.tool-btn.hl::before{content:'▼ CLICK HERE';position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:9px;color:#fbbf24;letter-spacing:2px;font-family:'Courier New',monospace;animation:btnHlPulse 0.9s ease-in-out infinite;white-space:nowrap;}
+@keyframes btnHlPulse{0%,100%{transform:scale(1);box-shadow:0 0 10px rgba(251,191,36,.4);}50%{transform:scale(1.04);box-shadow:0 0 28px rgba(251,191,36,.75);}}
+
+/* ── EKG STRIP ── */
+#ekg-wrap{height:56px;flex-shrink:0;background:#020810;border-top:1px solid #0e2a4a;position:relative;overflow:hidden;}
+canvas#ekg{display:block;width:100%;height:100%;}
+#ekg-label{position:absolute;top:4px;left:10px;font-size:8px;color:#1e4a2a;letter-spacing:2px;}
+
+/* ── OVERLAYS ── */
+#overlay{display:none;position:absolute;inset:0;background:rgba(2,5,10,.9);align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:10;text-align:center;padding:20px;}
+#overlay.show{display:flex;}
+#ov-title{font-size:28px;color:#5ba4ff;letter-spacing:4px;text-shadow:0 0 20px #5ba4ff88;}
+#ov-sub{font-size:13px;color:#8ab0cc;max-width:520px;line-height:1.8;}
+#ov-btn{padding:12px 36px;background:#0d2a5a;border:1px solid #5ba4ff;color:#c8e4ff;font-family:'Courier New',monospace;font-size:13px;letter-spacing:2px;cursor:pointer;border-radius:4px;}
+#ov-btn:hover{background:#1a4090;}
+#alarm-flash{display:none;position:absolute;inset:0;pointer-events:none;z-index:5;}
+#alarm-flash.on{display:block;animation:alarmAnim .25s infinite;}
+@keyframes alarmAnim{0%,100%{background:rgba(239,68,68,.0);}50%{background:rgba(239,68,68,.12);}}
+#health-bar.pulse-crit{animation:healthPulse .7s ease-in-out infinite;}
+@keyframes healthPulse{0%,100%{box-shadow:0 0 0 rgba(239,68,68,0);}50%{box-shadow:0 0 14px rgba(239,68,68,.8);}}
+#timer-val.timer-urgent{animation:timerFlash .4s ease-in-out infinite;}
+@keyframes timerFlash{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:.6;}}
+#vignette{position:absolute;inset:0;pointer-events:none;z-index:4;border-radius:0;transition:box-shadow .4s;}
+#vignette.crit{box-shadow:inset 0 0 120px rgba(180,0,0,.55);}
+#vignette.warn{box-shadow:inset 0 0 80px rgba(180,80,0,.35);}
+#shake-wrap{position:relative;flex:1;overflow:hidden;display:flex;}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- HEADER -->
+  <div id="hdr">
+    <div id="pt-name">PATIENT<span>J. DOE — 47M</span></div>
+    <div id="health-wrap">
+      <div id="health-label">PATIENT HEALTH (%)</div>
+      <div id="health-bar-bg"><div id="health-bar"></div></div>
+    </div>
+    <div id="vitals-row">
+      <div class="vital"><div class="vital-lbl">HR</div><div class="vital-val" id="v-hr">72</div></div>
+      <div class="vital"><div class="vital-lbl">BP</div><div class="vital-val" id="v-bp">120/80</div></div>
+      <div class="vital"><div class="vital-lbl">SpO₂</div><div class="vital-val" id="v-spo2">98%</div></div>
+      <div class="vital"><div class="vital-lbl">BRAIN ACT.</div><div class="vital-val" id="v-brain">85%</div></div>
+      <div class="vital"><div class="vital-lbl">ICP mmHg</div><div class="vital-val" id="v-icp">12</div></div>
+    </div>
+    <div id="timer-box">
+      <div id="timer-label">TIME REMAINING</div>
+      <div id="timer-val">--:--</div>
+    </div>
+    <div id="stage-label">OR-454<br>SIMULATOR</div>
+    <div id="voice-wrap">
+      <div id="speaking-dot"></div>
+      <button id="mute-btn" onclick="toggleMute()" title="Toggle narration">🔊</button>
+      <select id="voice-select" onchange="setVoice(this.value)" title="Select narrator voice"></select>
+      <button onclick="testVoice()" style="background:#040c18;border:1px solid #1a3a5a;color:#fbbf24;font-size:9px;font-family:'Courier New',monospace;cursor:pointer;border-radius:4px;padding:4px 7px;letter-spacing:1px;">TEST</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main-area">
+    <div id="canvas-wrap">
+      <canvas id="gc"></canvas>
+      <div id="vignette"></div>
+      <div id="alarm-flash"></div>
+      <div id="overlay">
+        <div id="ov-title"></div>
+        <div id="ov-sub"></div>
+        <button id="ov-btn" onclick="ovAction()"></button>
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div id="narr-panel">
+        <div id="narr-speaker">MATILDA — DR. C. GREY</div>
+        <div id="narr-text">Initializing OR-454 Simulator...</div>
+        <div id="action-box"><span id="action-box-arrow">→</span><span id="action-text"></span></div>
+      </div>
+      <div class="spanel" id="formula-panel">
+        <div class="spanel-title">Physics Reference</div>
+        <div id="formula-content"></div>
+      </div>
+      <div id="ctrl-area"></div>
+      <div class="spanel" style="margin-top:auto;">
+        <div class="spanel-title">References</div>
+        <div class="ref-item"><span>Hutfilz et al. (2025)</span> — Laser coagulation at 454nm for neurosurgical interventions. J. Biomed. Optics.</div>
+        <div class="ref-item"><span>Anderson &amp; Parrish (1983)</span> — Selective photothermolysis. Science, 220(4596).</div>
+        <div class="ref-item"><span>Belykh et al. (2017)</span> — Laser application in neurosurgery. Surg. Neurol. Int., 8, 274.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EKG STRIP -->
+  <div id="ekg-wrap">
+    <canvas id="ekg"></canvas>
+    <div id="ekg-label">ECG — LEAD II</div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+//  HIGHLIGHT + ACTION SYSTEM
+// ════════════════════════════════════════════════
+function hl(selector) {
+  document.querySelectorAll(selector).forEach(el => el.classList.add('hl'));
+}
+function unhlAll() {
+  document.querySelectorAll('.hl').forEach(el => el.classList.remove('hl'));
+}
+function setAction(text) {
+  const box = document.getElementById('action-box');
+  const txt = document.getElementById('action-text');
+  const panel = document.getElementById('narr-panel');
+  if(text) {
+    txt.textContent = text;
+    box.classList.add('show');
+    panel.classList.add('action-pending');
+  } else {
+    box.classList.remove('show');
+    panel.classList.remove('action-pending');
+  }
+}
+
+// canvas action prompt state
+let canvasAction = '';
+let canvasActionT = 0;
+function setCanvasAction(text) { canvasAction = text; canvasActionT = 0; }
+function clearCanvasAction() { canvasAction = ''; }
+
+function drawActionPrompt() {
+  if(!canvasAction) return;
+  canvasActionT += 0.04;
+  const W = gc.width, H = gc.height;
+  const pulse = 0.6 + 0.4 * Math.sin(canvasActionT);
+  const alpha = 0.85 * pulse;
+  const bw = Math.min(560, W - 40);
+  const bh = 38;
+  const bx = (W - bw) / 2;
+  const by = H - bh - 18;
+  ctx.save();
+  ctx.fillStyle = `rgba(13,26,8,${alpha})`;
+  ctx.strokeStyle = `rgba(251,191,36,${alpha})`;
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, bx, by, bw, bh, 5);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = `rgba(251,191,36,${alpha})`;
+  ctx.font = 'bold 12px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('→  ' + canvasAction, W / 2, by + 24);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x+r, y);
+  c.lineTo(x+w-r, y); c.arcTo(x+w, y, x+w, y+r, r);
+  c.lineTo(x+w, y+h-r); c.arcTo(x+w, y+h, x+w-r, y+h, r);
+  c.lineTo(x+r, y+h); c.arcTo(x, y+h, x, y+h-r, r);
+  c.lineTo(x, y+r); c.arcTo(x, y, x+r, y, r);
+  c.closePath();
+}
+
+// ════════════════════════════════════════════════
+//  VOICE / NARRATION ENGINE
+// ════════════════════════════════════════════════
+let voiceMuted = false;
+
+const SCRIPT = {
+  intro: `Welcome. You're likely a Physics 4A student. The formulas you've been drilling — diffusion length, Beer-Lambert, thermal relaxation time — are about to keep a patient alive. This is OR-454. A 47-year-old has an active intracranial bleed. You're the surgeon.`,
+
+  toolIntro: `The greatest enemy in neurosurgery is uncontrolled heat. Your first option is bipolar electrosurgery. It works by passing electrical current through tissue — the tissue resists the current, and that resistance generates heat which coagulates the blood vessel. Sound familiar? It's Joule heating — the same physics as a toaster wire. Click the bipolar button and watch what happens to the brain.`,
+
+  bipolarFiring1: `Watch the expanding orange zone. That ring is L equals the square root of four alpha t — the thermal diffusion length formula. Alpha is thermal diffusivity, how fast heat moves through a material. T is time. The ring shows you exactly how far heat has travelled into the tissue from the centre of the burn.`,
+  bipolarFiring2: `Here is the catastrophic problem. Brain tissue has a thermal diffusivity of 0.14 millimetres squared per second. Blood has 0.13. They are nearly identical. Alpha brain over alpha blood is 1.07 — almost one. So when you heat blood to seal the vessel, the diffusion formula says heat spreads into surrounding neurons at virtually the same rate. You cannot aim heat.`,
+  bipolarFiring3: `Every neuron lighting up orange is the diffusion length formula playing out in real tissue. Those are motor neurons, sensory fibres, association tracts. The physics does not distinguish between the vessel you want to close and the brain you are trying to protect.`,
+
+  bipolarAbort: `Abort. The physics made that outcome inevitable from the moment you applied current. We need to change the energy delivery mechanism entirely. Electricity creates heat everywhere. Light can be aimed. Switch to the 454 nanometre laser.`,
+
+  waveIntro: `Here is the insight that changes everything. We cannot stop heat from spreading once it exists. So the solution is to ensure heat only ever starts inside the blood — never in the brain. This is Selective Photothermolysis. Every molecule absorbs specific wavelengths of light and reflects others. We need the wavelength that haemoglobin devours — while brain tissue is completely transparent to it. Look at the three options. Which wavelength do you think haemoglobin absorbs most strongly?`,
+
+  waveHint: `The answer is in Beer-Lambert law: I of z equals I-naught times e to the negative mu z. Mu is the absorption coefficient — higher mu means the tissue absorbs the light more aggressively and the intensity drops faster. Haemoglobin has a Soret absorption band that peaks sharply between 415 and 454 nanometres. At that wavelength, mu for blood is enormous. For brain tissue, mu is nearly zero.`,
+
+  waveCorrect: `Correct. At 454 nanometres, brain tissue's mu is close to zero — the beam travels straight through neurons as if they aren't there. Zero absorption means zero heat in the brain. But the moment that beam enters a blood vessel, haemoglobin's enormous mu drives the exponent in Beer-Lambert through the floor. Intensity collapses to zero within the first 50 micrometres of blood. All energy deposits precisely inside the vessel. The brain never experiences the laser. That is Selective Photothermolysis — wavelength as a surgical scalpel.`,
+
+  microZoom1: `We are zooming into the blood vessel. Every scale of magnification reveals a different layer of why 454 nanometres works. At the surface level we see red blood cells. Deeper, we reach haemoglobin molecules. And inside each haemoglobin, a porphyrin ring — a molecular antenna tuned precisely to 454 nanometres.`,
+  microZoom2: `This is haemoglobin at molecular scale. The outer circle is the globin protein chain. The inner ring is the porphyrin group. The dot at the centre is an iron-two ion — Fe two plus. This entire structure is the Soret absorption band. When a 454 nanometre photon arrives, the porphyrin ring resonates and captures it completely. Brain tissue has no such structure at this wavelength. Its absorption coefficient mu is nearly zero. The beam passes straight through.`,
+  microZoom3: `Watch the blue dots — those are the laser photons. See how they sail straight through the brain cells on the left? Nothing stops them. But the moment they hit the haemoglobin molecules on the right, they vanish — absorbed instantly. That absorption is the laser converting its light energy into heat, right inside the blood. The brain cells never even notice the beam.`,
+  microZoom4: `The haemoglobin is now heating up from the inside. When proteins get hot enough they clump together — like egg white turning solid when you cook it. That clumping, called coagulation, plugs the vessel from within. The heat never leaves the blood, so the brain cells surrounding the vessel are completely unharmed. That is exactly what we wanted — precision heating with zero collateral damage.`,
+
+  waveWrong: `Wrong wavelength. At that frequency, brain tissue's mu is dangerously high. Before the beam even reaches the blood vessel, neurons are absorbing the energy and converting it to heat. You would burn cortical tissue without ever coagulating the vessel. Haemoglobin's Soret band peaks near 454 nanometres. Recalibrate.`,
+
+  surgIntro: `Four active bleeds across the frontal and parietal cortex. You have the right wavelength. But there is one final physics constraint. Even with 454 nanometres depositing heat only inside the blood, that heat will eventually begin to diffuse outward — governed by L equals root four alpha t. The Thermal Relaxation Time tells you how long you have before that happens. TRT equals diameter squared divided by four alpha. Fire your laser pulse in less time than the TRT, and the heat denatures haemoglobin and seals the vessel before any diffusion occurs. Exceed it, and the diffusion length formula takes over — exactly like bipolar. Click a vessel. Calculate. Fire.`,
+
+  targetVessel: `TRT equals d squared over four alpha. Diameter squared means TRT scales with the size of the vessel. A small vessel has almost no thermal mass — it relaxes fast. You must fire quickly and precisely. A larger vessel holds heat longer — you have more time, but more room for error.`,
+
+  vesselSealed: `Haemostasis. Your pulse duration was below the TRT — heat never had time to diffuse beyond the vessel wall. Haemoglobin denatured, the vessel contracted and sealed. Beer-Lambert put the energy in the right place. TRT kept it there long enough. Physics and surgery in perfect alignment.`,
+
+  vesselDamaged: `Thermal breach. Your pulse exceeded the TRT — and the diffusion length formula immediately began spreading heat into surrounding cortex. L equals root four alpha t does not stop when the laser does. The damage is already propagating. For the next vessel: calculate TRT first, then set your pulse below it.`,
+
+  win: `Patient is stable. What you just did was applied physics. L equals root four alpha t told you why electricity fails — heat spreads identically in blood and brain. Beer-Lambert told you that 454 nanometres loads all energy into haemoglobin, sparing neurons entirely. And TRT gave you your firing window — the exact duration within which the vessel seals before thermal diffusion escapes. The 454 nanometre blue laser solved a decades-old neurosurgical problem using three formulas from your Physics 4A course. I'm Christopher Grey. See you next time.`,
+
+  lose: `The patient did not survive. Every formula in your course was there to guide you. L equals root four alpha t — heat diffuses at equal rates through blood and brain, which is why bipolar fails. Beer-Lambert — absorption coefficient mu determines where light energy deposits, which is why wavelength selection is life or death. Thermal Relaxation Time — diameter squared over four alpha is the exact window you have to seal a vessel before diffusion destroys the tissue around it. These are not theoretical constructs. They are the physics of what just happened. Try again.`,
+};
+
+// ── Voice: recorded audio playback ──────────────────────────────────────────
+const VOICE_CUES = {
+  intro:          {s:0.00,   e:26.00},
+  toolIntro:      {s:31.55,  e:65.50},
+  bipolarFiring1: {s:70.95,  e:96.95},
+  bipolarFiring2: {s:103.40, e:134.80},
+  bipolarFiring3: {s:139.65, e:158.70},
+  bipolarAbort:   {s:163.40, e:182.70},
+  waveIntro:      {s:188.95, e:229.30},
+  waveHint:       {s:235.35, e:270.65},
+  waveCorrect:    {s:275.35, e:318.45},
+  mzCorrect1:     {s:324.30, e:345.75},
+  mzCorrect2:     {s:350.80, e:364.60},
+  mzCorrect3:     {s:367.70, e:390.15},
+  mzCorrect4:     {s:393.95, e:418.90},
+  waveWrong:      {s:424.20, e:449.50},
+  mzWrong1:       {s:456.60, e:470.15},
+  mzWrong2:       {s:486.35, e:499.60},
+  mzWrong3:       {s:503.95, e:524.40},
+  surgIntro:      {s:529.60, e:582.55},
+  targetVessel:   {s:586.65, e:609.55},
+  vesselSealed:   {s:614.30, e:637.55},
+  vesselDamaged:  {s:641.75, e:662.70},
+  mzSeal1:        {s:666.60, e:675.45},
+  mzSeal2:        {s:681.70, e:697.65},
+  mzSeal3:        {s:702.80, e:726.25},
+  mzDamage1:      {s:730.05, e:752.50},
+  mzDamage2:      {s:755.95, e:765.60},
+  win:            {s:768.80, e:836.30},
+  lose:           {s:839.15, e:887.30},
+};
+
+let _voiceAudio  = null;
+let _voiceEndT   = 0;
+let _voicePlaying= false;
+let _voiceQueue  = [];
+
+function _getAudio() {
+  if(!_voiceAudio) {
+    _voiceAudio = new Audio('feafel-voice.m4a');
+    _voiceAudio.preload = 'auto';
+    _voiceAudio.addEventListener('timeupdate', ()=>{
+      if(_voicePlaying && _voiceAudio.currentTime >= _voiceEndT) {
+        _voiceAudio.pause();
+        _voicePlaying = false;
+        _dequeueNext();
+      }
+    });
+  }
+  return _voiceAudio;
+}
+
+// Formulas to flash when each cue plays {cue: [{delay_s, text, col}]}
+// d = seconds after cue starts to show formula, dur = how long to keep it visible
+const CUE_FORMULAS = {
+  bipolarFiring1: [{d:0,  dur:26, text:'L = √(4αt)',          col:'#fbbf24'}],
+  bipolarFiring2: [{d:0,  dur:18, text:'α_brain ≈ α_blood',   col:'#ef4444'},
+                   {d:18, dur:13, text:'L = √(4αt)',           col:'#ef4444'}],
+  bipolarFiring3: [{d:0,  dur:19, text:'L = √(4αt)',           col:'#ef4444'}],
+  waveHint:       [{d:0,  dur:35, text:'I(z) = I₀ · e^(−μz)', col:'#5ba4ff'}],
+  waveCorrect:    [{d:0,  dur:43, text:'I(z) = I₀ · e^(−μz)', col:'#5ba4ff'}],
+  mzCorrect3:     [{d:0,  dur:22, text:'I(z) = I₀ · e^(−μz)', col:'#5ba4ff'}],
+  mzWrong3:       [{d:0,  dur:20, text:'I(z) = I₀ · e^(−μz)', col:'#ff5533'}],
+  surgIntro:      [{d:0,  dur:12, text:'L = √(4αt)',           col:'#fbbf24'},
+                   {d:12, dur:41, text:'TRT = d² / (4α)',      col:'#22cc88'}],
+  targetVessel:   [{d:0,  dur:23, text:'TRT = d² / (4α)',      col:'#22cc88'}],
+  vesselSealed:   [{d:0,  dur:23, text:'TRT = d² / (4α)',      col:'#22cc88'}],
+  vesselDamaged:  [{d:0,  dur:10, text:'TRT = d² / (4α)',      col:'#ef4444'},
+                   {d:10, dur:11, text:'L = √(4αt)',           col:'#ef4444'}],
+  win:            [{d:0,  dur:8,  text:'L = √(4αt)',           col:'#fbbf24'},
+                   {d:8,  dur:8,  text:'I(z) = I₀ · e^(−μz)', col:'#5ba4ff'},
+                   {d:16, dur:16, text:'TRT = d² / (4α)',      col:'#22cc88'}],
+  lose:           [{d:0,  dur:8,  text:'L = √(4αt)',           col:'#fbbf24'},
+                   {d:8,  dur:7,  text:'I(z) = I₀ · e^(−μz)', col:'#5ba4ff'},
+                   {d:15, dur:14, text:'TRT = d² / (4α)',      col:'#22cc88'}],
+};
+
+function _doPlayCue(name) {
+  const cue = VOICE_CUES[name];
+  if(!cue) { _voicePlaying=false; _dequeueNext(); return; }
+  const a = _getAudio();
+  a.pause();
+  _voiceEndT   = cue.e;
+  _voicePlaying= true;
+  a.currentTime= cue.s;
+  a.play().catch(()=>{ _voicePlaying=false; _dequeueNext(); });
+  const dot = document.getElementById('speaking-dot');
+  if(dot) dot.classList.add('active');
+  // Schedule formula flashes for this cue — each fires at d seconds and stays for dur seconds
+  (CUE_FORMULAS[name]||[]).forEach(f=>{
+    setTimeout(()=>{ flashFormula(f.text, f.col, f.dur||6); }, f.d*1000);
+  });
+}
+
+function _dequeueNext() {
+  const dot = document.getElementById('speaking-dot');
+  if(_voiceQueue.length) {
+    _doPlayCue(_voiceQueue.shift());
+  } else {
+    _voicePlaying = false;
+    if(dot) dot.classList.remove('active');
+  }
+}
+
+// playCue: interrupt anything playing, clear queue, play immediately
+function playCue(name) {
+  if(voiceMuted) return;
+  _voiceQueue = [];
+  _doPlayCue(name);
+}
+
+// queueCue: play after current cue finishes (no interruption)
+function queueCue(name) {
+  if(voiceMuted || !VOICE_CUES[name]) return;
+  if(!_voicePlaying) { _doPlayCue(name); }
+  else               { _voiceQueue.push(name); }
+}
+
+function stopVoice() {
+  _voiceQueue  = [];
+  _voicePlaying= false;
+  if(!_voiceAudio) return;
+  _voiceAudio.pause();
+  const dot = document.getElementById('speaking-dot');
+  if(dot) dot.classList.remove('active');
+}
+
+// speak() maps SCRIPT text keys to recorded cues
+const _scriptToCue = {
+  [SCRIPT.intro]:          'intro',
+  [SCRIPT.toolIntro]:      'toolIntro',
+  [SCRIPT.bipolarFiring1]: 'bipolarFiring1',
+  [SCRIPT.bipolarFiring2]: 'bipolarFiring2',
+  [SCRIPT.bipolarFiring3]: 'bipolarFiring3',
+  [SCRIPT.bipolarAbort]:   'bipolarAbort',
+  [SCRIPT.waveIntro]:      'waveIntro',
+  [SCRIPT.waveHint]:       'waveHint',
+  [SCRIPT.waveCorrect]:    'waveCorrect',
+  [SCRIPT.waveWrong]:      'waveWrong',
+  [SCRIPT.surgIntro]:      'surgIntro',
+  [SCRIPT.targetVessel]:   'targetVessel',
+  [SCRIPT.vesselSealed]:   'vesselSealed',
+  [SCRIPT.vesselDamaged]:  'vesselDamaged',
+  [SCRIPT.win]:            'win',
+  [SCRIPT.lose]:           'lose',
+};
+
+function speak(text, interrupt=false) {
+  if(voiceMuted) return;
+  const cue = _scriptToCue[text];
+  if(!cue) return;
+  if(interrupt) playCue(cue);
+  else          queueCue(cue);
+}
+
+// ── Music ────────────────────────────────────────────────────────────────────
+let _music = null;
+let _musicFadeTimer = null;
+let _ambient = null;
+let _ambientFadeTimer = null;
+
+function _getAmbient() {
+  if(!_ambient) {
+    _ambient = new Audio('ambient-music.mp3');
+    _ambient.loop = true;
+    _ambient.volume = 0;
+  }
+  return _ambient;
+}
+
+function playAmbient() {
+  if(voiceMuted) return;
+  clearInterval(_ambientFadeTimer);
+  const a = _getAmbient();
+  a.currentTime = 0;
+  a.volume = 0;
+  a.play().catch(()=>{});
+  let v = 0;
+  _ambientFadeTimer = setInterval(()=>{
+    v = Math.min(v + 0.005, 0.05);
+    a.volume = v;
+    if(v >= 0.05) clearInterval(_ambientFadeTimer);
+  }, 60);
+}
+
+function stopAmbient() {
+  clearInterval(_ambientFadeTimer);
+  if(!_ambient) return;
+  let v = _ambient.volume;
+  _ambientFadeTimer = setInterval(()=>{
+    v = Math.max(v - 0.008, 0);
+    _ambient.volume = v;
+    if(v <= 0) { clearInterval(_ambientFadeTimer); _ambient.pause(); }
+  }, 60);
+}
+
+function _getMusic() {
+  if(!_music) {
+    _music = new Audio('intro-music.mp3');
+    _music.loop = true;
+    _music.volume = 0;
+  }
+  return _music;
+}
+
+function playMusic() {
+  if(voiceMuted) return;
+  clearInterval(_musicFadeTimer);
+  const m = _getMusic();
+  m.currentTime = 0;
+  m.volume = 0;
+  m.play().catch(()=>{});
+  // Fade in to 0.55 over 1.5s
+  let v = 0;
+  _musicFadeTimer = setInterval(()=>{
+    v = Math.min(v + 0.04, 0.10);
+    m.volume = v;
+    if(v >= 0.55) clearInterval(_musicFadeTimer);
+  }, 60);
+}
+
+function stopMusic() {
+  clearInterval(_musicFadeTimer);
+  if(!_music) return;
+  // Fade out over 1.2s
+  let v = _music.volume;
+  _musicFadeTimer = setInterval(()=>{
+    v = Math.max(v - 0.05, 0);
+    _music.volume = v;
+    if(v <= 0) { clearInterval(_musicFadeTimer); _music.pause(); }
+  }, 60);
+}
+
+function initVoiceEngine() {
+  _getAudio();
+  _getMusic();
+  _getAmbient();
+  const sel = document.getElementById('voice-select');
+  if(sel) sel.style.display='none';
+}
+
+window.setVoice = ()=>{};
+
+window.toggleMute = () => {
+  voiceMuted = !voiceMuted;
+  const b = document.getElementById('mute-btn');
+  if(voiceMuted) {
+    b.textContent = '🔇'; b.classList.add('muted');
+    stopVoice();
+    if(_music) _music.pause();
+    if(_ambient) _ambient.pause();
+  } else {
+    b.textContent = '🔊'; b.classList.remove('muted');
+  }
+};
+
+window.testVoice = () => { playCue('intro'); };
+
+// ════════════════════════════════════════════════
+//  ZOOM / PAN
+// ════════════════════════════════════════════════
+let camZoom = 1.0, camX = 0, camY = 0;
+let panActive = false, panLast = {x:0, y:0};
+const ZOOM_MIN = 1.0, ZOOM_MAX = 12.0;
+
+function applyCamera() { ctx.save(); ctx.translate(gc.width/2, gc.height/2); ctx.scale(camZoom, camZoom); ctx.translate(-gc.width/2 + camX, -gc.height/2 + camY); }
+function restoreCamera() { ctx.restore(); }
+function screenToWorld(sx, sy) { return { x:(sx-gc.width/2)/camZoom+gc.width/2-camX, y:(sy-gc.height/2)/camZoom+gc.height/2-camY }; }
+function clampCamera() { const m=300*camZoom; camX=Math.max(-m,Math.min(m,camX)); camY=Math.max(-m,Math.min(m,camY)); if(camZoom<=1){camX=0;camY=0;} }
+
+function drawZoomHUD() {
+  if(camZoom <= 1.05) return;
+  const W=gc.width;
+  ctx.save();
+  ctx.fillStyle='rgba(4,12,24,.8)'; ctx.fillRect(W-90,8,82,22);
+  ctx.strokeStyle='#1a3a5a'; ctx.lineWidth=1; ctx.strokeRect(W-90,8,82,22);
+  ctx.fillStyle='#5ba4ff'; ctx.font='10px Courier New'; ctx.textAlign='right';
+  ctx.fillText(`🔬 ${camZoom.toFixed(1)}×  ZOOM`, W-12, 23);
+  ctx.fillStyle='rgba(4,12,24,.7)'; ctx.fillRect(W-100,34,92,16);
+  ctx.fillStyle='#4a6a82'; ctx.font='8px Courier New';
+  ctx.fillText('scroll or dbl-click reset', W-10, 46);
+  ctx.textAlign='left'; ctx.restore();
+}
+
+// ════════════════════════════════════════════════
+//  GLOBALS
+// ════════════════════════════════════════════════
+const gc  = document.getElementById('gc');
+const ctx = gc.getContext('2d');
+const ekgC = document.getElementById('ekg');
+const ekgX = ekgC.getContext('2d');
+
+gc.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect=gc.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(gc.width/rect.width);
+  const my=(e.clientY-rect.top)*(gc.height/rect.height);
+  const factor=e.deltaY<0?1.12:1/1.12;
+  const nz=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,camZoom*factor));
+  const wx=(mx-gc.width/2)/camZoom+gc.width/2-camX;
+  const wy=(my-gc.height/2)/camZoom+gc.height/2-camY;
+  camZoom=nz; camX=gc.width/2-wx-(mx-gc.width/2)/camZoom; camY=gc.height/2-wy-(my-gc.height/2)/camZoom;
+  clampCamera();
+}, {passive:false});
+gc.addEventListener('mousedown',(e)=>{ if(e.button===2||(e.button===0&&e.altKey)){panActive=true;panLast={x:e.clientX,y:e.clientY};gc.style.cursor='grab';e.preventDefault();} });
+gc.addEventListener('mousemove',(e)=>{ if(!panActive)return; const rect=gc.getBoundingClientRect(),sx=gc.width/rect.width; camX+=(e.clientX-panLast.x)*sx/camZoom; camY+=(e.clientY-panLast.y)*sx/camZoom; panLast={x:e.clientX,y:e.clientY}; clampCamera(); });
+gc.addEventListener('mouseup',()=>{ panActive=false; gc.style.cursor=''; });
+gc.addEventListener('mouseleave',()=>{ panActive=false; gc.style.cursor=''; });
+gc.addEventListener('contextmenu',e=>e.preventDefault());
+gc.addEventListener('dblclick',()=>{ camZoom=1;camX=0;camY=0; });
+gc.addEventListener('click',()=>{ if(microZoom) microZoomClick(); });
+
+// ── MOUSE TRACKING FOR SURGERY CROSSHAIR ────────────────────────────────
+let mouseX=0, mouseY=0;
+gc.addEventListener('mousemove', e => {
+  const rect=gc.getBoundingClientRect();
+  mouseX=(e.clientX-rect.left)*(gc.width/rect.width);
+  mouseY=(e.clientY-rect.top)*(gc.height/rect.height);
+});
+
+// patient state
+let health=100, HR=72, sysBP=120, diaBP=80, spo2=98, brainAct=85;
+let alarm=false, heartbeatPeriod=60/72;
+let ekgBuf=[], ekgT=0, ekgPhase=0;
+let timerMax=90, timerLeft=90, timerRunning=false, lastTS=null;
+let score=0, mistakes=0;
+let GSTATE='INTRO';
+let neurons=[], vessels=[], heatRings=[], bloodDrops=[], laserBeam=null, photons=[];
+let showVesselArrows = false;
+// ── FX GLOBALS ──────────────────────────────────
+let floatLabels=[], scorePops=[], particles=[], stageCard=null;
+let trtRing=null, firingElapsed=0;
+let formulaFlashes=[]; // {text, col, t, maxT}
+let bfMilestones=[false,false,false];
+// ── JUICE GLOBALS ───────────────────────────────
+let shakeT=0, shakeI=0;
+let icp=12; // intracranial pressure mmHg baseline
+
+// ════════════════════════════════════════════════
+//  LAYOUT
+// ════════════════════════════════════════════════
+function resize() {
+  const w=document.getElementById('canvas-wrap');
+  gc.width=w.clientWidth; gc.height=w.clientHeight;
+  ekgC.width=document.getElementById('ekg-wrap').clientWidth;
+  ekgC.height=document.getElementById('ekg-wrap').clientHeight;
+}
+window.addEventListener('resize',()=>{
+  resize();
+  buildNeurons();
+  brainCache=null;
+  // Reposition all live vessels to their fractional positions after canvas resize
+  if(toolVessel){ toolVessel.x=gc.width*.5; toolVessel.y=gc.height*.45; bipolarX=toolVessel.x; bipolarY=toolVessel.y; }
+  if(waveTestVessel){ waveTestVessel.x=gc.width*.5; waveTestVessel.y=gc.height*.48; waveTestVessel.baseX=gc.width*.5; waveTestVessel.baseY=gc.height*.48; }
+  if(surgVessels&&surgVessels.length){
+    const fracs=[{fx:.22,fy:.35},{fx:.60,fy:.25},{fx:.35,fy:.68},{fx:.72,fy:.55}];
+    surgVessels.forEach((v,i)=>{ if(!fracs[i]) return; v.x=gc.width*fracs[i].fx; v.y=gc.height*fracs[i].fy; v.baseX=v.x; v.baseY=v.y; });
+  }
+});
+resize();
+
+// ════════════════════════════════════════════════
+//  NEURONS
+// ════════════════════════════════════════════════
+function buildNeurons() {
+  neurons=[];
+  const W=gc.width, H=gc.height, seed=1337;
+  function rng(n){ let x=Math.sin(n*seed)*99999; return x-Math.floor(x); }
+  for(let i=0;i<80;i++) neurons.push({
+    x:rng(i*7.1+1)*W, y:rng(i*3.3+2)*H, r:2.5+rng(i*5.5+3)*2, damage:0,
+    ax:[[rng(i*2.1+4)*28-14,rng(i*2.2+5)*28-14],[rng(i*2.3+6)*26-13,rng(i*2.4+7)*26-13],[rng(i*2.5+8)*22-11,rng(i*2.6+9)*22-11]]
+  });
+}
+buildNeurons();
+
+// ════════════════════════════════════════════════
+//  EKG
+// ════════════════════════════════════════════════
+function ekgWaveform(p) {
+  p=p%1;
+  if(p<.1)  return 0.15*Math.sin(p/0.1*Math.PI);
+  if(p<.15) return 0;
+  if(p<.2)  return -0.3*Math.sin((p-.15)/.05*Math.PI);
+  if(p<.28) return  1.0*Math.sin((p-.2)/.08*Math.PI);
+  if(p<.35) return -0.25*Math.sin((p-.28)/.07*Math.PI);
+  if(p<.5)  return 0;
+  if(p<.65) return  0.35*Math.sin((p-.5)/.15*Math.PI);
+  return 0;
+}
+function drawEKG(ts) {
+  const W=ekgC.width, H=ekgC.height;
+  ekgX.fillStyle='#020810'; ekgX.fillRect(0,0,W,H);
+  ekgX.strokeStyle='#0a1e0a'; ekgX.lineWidth=1;
+  for(let x=0;x<W;x+=20){ekgX.beginPath();ekgX.moveTo(x,0);ekgX.lineTo(x,H);ekgX.stroke();}
+  for(let y=0;y<H;y+=14){ekgX.beginPath();ekgX.moveTo(0,y);ekgX.lineTo(W,y);ekgX.stroke();}
+  const dead=(HR<=0), speed=dead?0:HR/60;
+  const dt=ts-(lastTS||ts);
+  ekgPhase+=speed*(dt/1000);
+  const amp=H*.38, mid=H*.55;
+  const val=dead?0:amp*ekgWaveform(ekgPhase);
+  ekgBuf.push(val); if(ekgBuf.length>W) ekgBuf.shift();
+  const col=dead?'#1a0404':HR>110?'#ef4444':'#22c55e';
+  ekgX.shadowColor=col; ekgX.shadowBlur=dead?0:8;
+  ekgX.strokeStyle=col; ekgX.lineWidth=dead?1.5:2;
+  ekgX.beginPath();
+  for(let i=0;i<ekgBuf.length;i++){ const px=i,py=mid-ekgBuf[i]; i===0?ekgX.moveTo(px,py):ekgX.lineTo(px,py); }
+  ekgX.stroke(); ekgX.shadowBlur=0;
+  requestAnimationFrame(t=>drawEKG(t));
+}
+requestAnimationFrame(t=>drawEKG(t));
+
+// ════════════════════════════════════════════════
+//  VITALS
+// ════════════════════════════════════════════════
+function updateVitals(dt) {
+  HR      +=(Math.random()-.5)*.8*dt;
+  sysBP   +=(Math.random()-.5)*1.5*dt;
+  spo2    +=(Math.random()-.5)*.3*dt;
+  brainAct+=(Math.random()-.5)*.5*dt;
+  const hf=health/100;
+  HR      =Math.max(0,Math.min(160,HR      +(72*hf-HR)*.01*dt));
+  sysBP   =Math.max(50,Math.min(200,sysBP  +(120*hf-sysBP)*.01*dt));
+  diaBP   =sysBP*.67;
+  spo2    =Math.max(60,Math.min(100,spo2   +(98*hf-spo2)*.01*dt));
+  brainAct=Math.max(0,Math.min(100,brainAct+(85*hf-brainAct)*.01*dt));
+  // ICP rises as patient deteriorates — haemorrhage raises intracranial pressure
+  const bleeding=GSTATE==='SURGERY'?vessels.filter(v=>v.state==='bleeding').length:0;
+  icp=Math.max(8,Math.min(60,icp+(bleeding*0.8-0.3*(icp-12))*dt+(Math.random()-.5)*0.5));
+  heartbeatPeriod=HR>0?60/HR:999;
+  function cls(v,ok,warn,bad){ if(v<bad)return'crit'; if(v<warn)return'warn'; return''; }
+  setVital('v-hr',Math.round(HR),cls(HR,80,50,40));
+  setVital('v-bp',Math.round(sysBP)+'/'+Math.round(diaBP),cls(sysBP,80,70,55));
+  setVital('v-spo2',Math.round(spo2)+'%',cls(spo2,94,88,80));
+  setVital('v-brain',Math.round(brainAct)+'%',cls(brainAct,70,50,30));
+  setVital('v-icp',Math.round(icp)+' mmHg',icp>40?'crit':icp>25?'warn':'');
+  const hb=document.getElementById('health-bar');
+  hb.style.width=Math.max(0,health)+'%';
+  hb.style.background=health>60?'linear-gradient(90deg,#22c55e,#4ade80)':health>30?'linear-gradient(90deg,#f59e0b,#fbbf24)':'linear-gradient(90deg,#ef4444,#f87171)';
+  if(health<40)hb.classList.add('pulse-crit'); else hb.classList.remove('pulse-crit');
+  // Vignette
+  const vig=document.getElementById('vignette');
+  if(health<35){vig.className='crit';}else if(health<65){vig.className='warn';}else{vig.className='';}
+}
+function setVital(id,val,warnCls='') { const el=document.getElementById(id); el.textContent=val; el.className='vital-val '+warnCls; }
+
+// ════════════════════════════════════════════════
+//  TIMER
+// ════════════════════════════════════════════════
+function updateTimer(dt) {
+  if(!timerRunning) return;
+  timerLeft-=dt; if(timerLeft<0){timerLeft=0;timerRunning=false;onTimeout();}
+  const m=Math.floor(timerLeft/60), s=Math.floor(timerLeft%60);
+  const el=document.getElementById('timer-val');
+  el.textContent=m+':'+(s<10?'0':'')+s;
+  el.style.color=timerLeft<20?'#ef4444':timerLeft<45?'#fbbf24':'#22c55e';
+  if(timerLeft<20)el.classList.add('timer-urgent'); else el.classList.remove('timer-urgent');
+}
+function onTimeout() { if(GSTATE==='SURGERY') triggerOutcome(false,'TIME IS UP'); }
+function triggerAlarm(on) { alarm=on; document.getElementById('alarm-flash').className=on?'on':''; }
+function triggerShake(intensity,duration){shakeI=Math.max(shakeI,intensity);shakeT=Math.max(shakeT,duration);}
+
+// ════════════════════════════════════════════════
+//  NARRATION HELPERS
+// ════════════════════════════════════════════════
+function setNarr(t){ document.getElementById('narr-text').textContent=t; }
+function setFormula(h){ document.getElementById('formula-content').innerHTML=h; }
+function setCtrl(h){ document.getElementById('ctrl-area').innerHTML=h; }
+function showOverlay(title,sub,btn){ document.getElementById('ov-title').textContent=title; document.getElementById('ov-sub').textContent=sub; document.getElementById('ov-btn').textContent=btn; document.getElementById('overlay').classList.add('show'); }
+function hideOverlay(){ document.getElementById('overlay').classList.remove('show'); }
+function setStageLabel(t){ document.getElementById('stage-label').innerHTML=t; }
+function addScore(n){ score+=n; }
+
+// ════════════════════════════════════════════════
+//  BACKGROUND
+// ════════════════════════════════════════════════
+// ── PRE-BAKED BRAIN PATH DATA ────────────────────
+// Built once, reused every frame. Rebuilt on resize.
+let brainCache = null;
+function buildBrainCache() {
+  const W=gc.width, H=gc.height;
+  const cx=W*.5, cy=H*.5;
+  const RX=W*.42, RY=H*.44;
+
+  // Each sulcus: deep shadow trench drawn first, then a lighter gyrus crest on top
+  // Real intraoperative appearance: sulci are dark red-brown grooves, gyri are moist pink-tan
+  const sulci=[]; // {pts, w} — drawn as dark trenches
+  const gyriCrest=[]; // {pts, w, col} — drawn as lit gyrus surfaces
+
+  // ── LEFT HEMISPHERE ──────────────────────────────────────────────────
+  // Superior frontal sulcus
+  sulci.push({pts:[[-RX*.95,-RY*.05],[-RX*.82,-RY*.38],[-RX*.5,-RY*.68],[-RX*.08,-RY*.84]],w:5});
+  gyriCrest.push({pts:[[-RX*.93,-RY*.02],[-RX*.8,-RY*.34],[-RX*.48,-RY*.64],[-RX*.06,-RY*.81]],w:2.5,col:'rgba(180,130,110,.18)'});
+  // Middle frontal sulcus
+  sulci.push({pts:[[-RX*.82,RY*.12],[-RX*.64,-RY*.22],[-RX*.32,-RY*.62],[-RX*.06,-RY*.77]],w:4});
+  gyriCrest.push({pts:[[-RX*.80,RY*.14],[-RX*.62,-RY*.18],[-RX*.3,-RY*.58],[-RX*.04,-RY*.73]],w:2,col:'rgba(170,120,100,.15)'});
+  // Inferior frontal / Sylvian fissure approach
+  sulci.push({pts:[[-RX*.56,RY*.42],[-RX*.42,RY*.08],[-RX*.24,-RY*.32],[-RX*.07,-RY*.56]],w:4.5});
+  gyriCrest.push({pts:[[-RX*.54,RY*.44],[-RX*.40,RY*.1],[-RX*.22,-RY*.28],[-RX*.05,-RY*.52]],w:2,col:'rgba(160,115,95,.13)'});
+  // Central sulcus (Rolandic) — prominent, wider
+  sulci.push({pts:[[-RX*.78,RY*.55],[-RX*.62,RY*.18],[-RX*.4,-RY*.14],[-RX*.21,-RY*.48]],w:6});
+  gyriCrest.push({pts:[[-RX*.76,RY*.57],[-RX*.60,RY*.2],[-RX*.38,-RY*.11],[-RX*.19,-RY*.44]],w:3,col:'rgba(190,140,115,.22)'});
+  // Postcentral sulcus
+  sulci.push({pts:[[-RX*.88,RY*.44],[-RX*.74,RY*.6],[-RX*.58,RY*.72],[-RX*.3,RY*.8]],w:4});
+  gyriCrest.push({pts:[[-RX*.86,RY*.46],[-RX*.72,RY*.62],[-RX*.56,RY*.74],[-RX*.28,RY*.82]],w:2,col:'rgba(165,120,100,.14)'});
+  // Intraparietal sulcus
+  sulci.push({pts:[[-RX*.62,RY*.78],[-RX*.36,RY*.7],[-RX*.14,RY*.56]],w:3.5});
+  gyriCrest.push({pts:[[-RX*.60,RY*.80],[-RX*.34,RY*.72],[-RX*.12,RY*.58]],w:1.8,col:'rgba(155,112,90,.12)'});
+  // Occipital transverse folds
+  sulci.push({pts:[[-RX*.84,RY*.68],[-RX*.72,RY*.86],[-RX*.46,RY*.93],[-RX*.2,RY*.88]],w:3.5});
+  gyriCrest.push({pts:[[-RX*.82,RY*.70],[-RX*.70,RY*.88],[-RX*.44,RY*.95],[-RX*.18,RY*.9]],w:2,col:'rgba(150,108,85,.13)'});
+  // Superior temporal / lateral fissure
+  sulci.push({pts:[[-RX*.94,RY*.14],[-RX*.97,RY*.44],[-RX*.92,RY*.72]],w:4.5});
+  gyriCrest.push({pts:[[-RX*.92,RY*.16],[-RX*.95,RY*.46],[-RX*.90,RY*.74]],w:2.2,col:'rgba(160,115,95,.15)'});
+
+  // ── RIGHT HEMISPHERE (slight asymmetry for realism) ───────────────────
+  sulci.push({pts:[[RX*.95,-RY*.03],[RX*.83,-RY*.36],[RX*.52,-RY*.66],[RX*.09,-RY*.82]],w:5});
+  gyriCrest.push({pts:[[RX*.93,RY*.0],[RX*.81,-RY*.32],[RX*.50,-RY*.62],[RX*.07,-RY*.79]],w:2.5,col:'rgba(180,130,110,.18)'});
+  sulci.push({pts:[[RX*.80,RY*.14],[RX*.62,-RY*.20],[RX*.30,-RY*.60],[RX*.06,-RY*.75]],w:4});
+  gyriCrest.push({pts:[[RX*.78,RY*.16],[RX*.60,-RY*.16],[RX*.28,-RY*.56],[RX*.04,-RY*.71]],w:2,col:'rgba(170,120,100,.15)'});
+  sulci.push({pts:[[RX*.54,RY*.44],[RX*.40,RY*.10],[RX*.22,-RY*.30],[RX*.06,-RY*.54]],w:4.5});
+  gyriCrest.push({pts:[[RX*.52,RY*.46],[RX*.38,RY*.12],[RX*.20,-RY*.26],[RX*.04,-RY*.50]],w:2,col:'rgba(160,115,95,.13)'});
+  sulci.push({pts:[[RX*.79,RY*.53],[RX*.63,RY*.16],[RX*.42,-RY*.12],[RX*.23,-RY*.46]],w:6});
+  gyriCrest.push({pts:[[RX*.77,RY*.55],[RX*.61,RY*.18],[RX*.40,-RY*.09],[RX*.21,-RY*.42]],w:3,col:'rgba(190,140,115,.22)'});
+  sulci.push({pts:[[RX*.9,RY*.42],[RX*.76,RY*.58],[RX*.60,RY*.70],[RX*.32,RY*.78]],w:4});
+  gyriCrest.push({pts:[[RX*.88,RY*.44],[RX*.74,RY*.60],[RX*.58,RY*.72],[RX*.30,RY*.80]],w:2,col:'rgba(165,120,100,.14)'});
+  sulci.push({pts:[[RX*.64,RY*.76],[RX*.38,RY*.68],[RX*.16,RY*.54]],w:3.5});
+  gyriCrest.push({pts:[[RX*.62,RY*.78],[RX*.36,RY*.70],[RX*.14,RY*.56]],w:1.8,col:'rgba(155,112,90,.12)'});
+  sulci.push({pts:[[RX*.86,RY*.66],[RX*.74,RY*.84],[RX*.48,RY*.91],[RX*.22,RY*.86]],w:3.5});
+  gyriCrest.push({pts:[[RX*.84,RY*.68],[RX*.72,RY*.86],[RX*.46,RY*.93],[RX*.20,RY*.88]],w:2,col:'rgba(150,108,85,.13)'});
+  sulci.push({pts:[[RX*.95,RY*.12],[RX*.98,RY*.42],[RX*.93,RY*.70]],w:4.5});
+  gyriCrest.push({pts:[[RX*.93,RY*.14],[RX*.96,RY*.44],[RX*.91,RY*.72]],w:2.2,col:'rgba(160,115,95,.15)'});
+
+  // Interhemispheric para-falcine folds
+  sulci.push({pts:[[-RX*.05,-RY*.88],[-RX*.03,-RY*.42],[-RX*.04,RY*.1],[-RX*.03,RY*.58],[-RX*.05,RY*.90]],w:2});
+  sulci.push({pts:[[RX*.05,-RY*.86],[RX*.03,-RY*.40],[RX*.04,RY*.12],[RX*.03,RY*.56],[RX*.05,RY*.88]],w:2});
+
+  // Pial surface vessels (large draining veins / arteries on the surface)
+  const pialVessels=[
+    {pts:[[-RX*.12,-RY*.72],[-RX*.18,-RY*.3],[-RX*.22,RY*.15],[-RX*.18,RY*.55]],w:2.5,col:'rgba(180,30,30,.55)'},
+    {pts:[[RX*.10,-RY*.70],[RX*.16,-RY*.28],[RX*.20,RY*.17],[RX*.16,RY*.53]],w:2.5,col:'rgba(180,30,30,.55)'},
+    {pts:[[-RX*.42,-RY*.6],[-RX*.55,-RY*.2],[-RX*.62,RY*.25]],w:2,col:'rgba(160,25,25,.45)'},
+    {pts:[[RX*.40,-RY*.58],[RX*.53,-RY*.18],[RX*.60,RY*.27]],w:2,col:'rgba(160,25,25,.45)'},
+    {pts:[[-RX*.75,-RY*.1],[-RX*.7,RY*.3],[-RX*.65,RY*.6]],w:1.8,col:'rgba(140,20,20,.4)'},
+    {pts:[[RX*.73,-RY*.08],[RX*.68,RY*.32],[RX*.63,RY*.62]],w:1.8,col:'rgba(140,20,20,.4)'},
+    {pts:[[-RX*.3,RY*.65],[-RX*.08,RY*.78],[RX*.15,RY*.72],[RX*.38,RY*.68]],w:2,col:'rgba(150,22,22,.42)'},
+  ];
+
+  brainCache={cx,cy,RX,RY,sulci,gyriCrest,pialVessels};
+}
+
+function drawBrainBG() {
+  const W=gc.width,H=gc.height;
+  if(!brainCache||brainCache.cx!==W*.5) buildBrainCache();
+  const {cx,cy,RX,RY,sulci,gyriCrest,pialVessels}=brainCache;
+
+  // ── OR field ─────────────────────────────────────────────────────────
+  ctx.fillStyle='#030609';ctx.fillRect(0,0,W,H);
+  // Surgical drape — dark teal cloth with fine weave
+  const drape=ctx.createRadialGradient(cx,cy,RX*1.15,cx,cy,Math.max(W,H)*.9);
+  drape.addColorStop(0,'rgba(4,14,20,0)');
+  drape.addColorStop(0.28,'rgba(3,13,20,.85)');
+  drape.addColorStop(1,'rgba(1,5,9,1)');
+  ctx.fillStyle=drape;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(6,20,30,.5)';ctx.lineWidth=1;
+  for(let x2=0;x2<W;x2+=16){ctx.beginPath();ctx.moveTo(x2,0);ctx.lineTo(x2,H);ctx.stroke();}
+  for(let y2=0;y2<H;y2+=16){ctx.beginPath();ctx.moveTo(0,y2);ctx.lineTo(W,y2);ctx.stroke();}
+
+  // ── Skull / bone ring (craniotomy edge) ──────────────────────────────
+  ctx.save();
+  // Outer bone shadow
+  ctx.beginPath();ctx.ellipse(cx,cy,RX+32,RY+32,0,0,Math.PI*2);
+  ctx.fillStyle='#060504';ctx.fill();
+  // Bone ring gradient — ivory-tan with darkening at edges
+  ctx.beginPath();ctx.ellipse(cx,cy,RX+26,RY+26,0,0,Math.PI*2);
+  const skullG=ctx.createRadialGradient(cx-RX*.1,cy-RY*.1,RX*.9,cx,cy,RX+26);
+  skullG.addColorStop(0,'#3a3020');
+  skullG.addColorStop(0.5,'#2e2518');
+  skullG.addColorStop(1,'#181210');
+  ctx.fillStyle=skullG;ctx.fill();
+  // Bone diploë texture — trabecular pattern
+  ctx.strokeStyle='rgba(70,55,30,.35)';ctx.lineWidth=1;
+  for(let a=0;a<Math.PI*2;a+=0.14){
+    const r1=RX+12, r2=RX+22;
+    const bx1=cx+Math.cos(a)*r1, by1=cy+Math.sin(a)*(r1/RX*RY);
+    const bx2=cx+Math.cos(a+0.07)*r2, by2=cy+Math.sin(a+0.07)*(r2/RX*RY);
+    ctx.beginPath();ctx.moveTo(bx1,by1);ctx.lineTo(bx2,by2);ctx.stroke();
+  }
+  // Bone pits
+  ctx.fillStyle='rgba(20,14,8,.5)';
+  for(let a=0;a<Math.PI*2;a+=0.22){
+    const rr=RX+17+Math.sin(a*7)*3;
+    ctx.beginPath();ctx.arc(cx+Math.cos(a)*rr,cy+Math.sin(a)*(rr/RX*RY),1.5,0,Math.PI*2);ctx.fill();
+  }
+  // Inner craniotomy cut edge — clean sharp line
+  ctx.beginPath();ctx.ellipse(cx,cy,RX+4,RY+4,0,0,Math.PI*2);
+  ctx.strokeStyle='rgba(8,5,3,.9)';ctx.lineWidth=4;ctx.stroke();
+  ctx.restore();
+
+  // ── Brain base fill — realistic cortical colour ───────────────────────
+  ctx.save();
+  ctx.beginPath();ctx.ellipse(cx,cy,RX,RY,0,0,Math.PI*2);
+  // Moist pinkish-tan cortex — intraoperative colour
+  const cortexG=ctx.createRadialGradient(cx-RX*.12,cy-RY*.18,RY*.05,cx,cy,RX*1.1);
+  cortexG.addColorStop(0,'#8a6a5a');   // central highlight: pinkish-tan (surgical light)
+  cortexG.addColorStop(0.22,'#7a5a4c');
+  cortexG.addColorStop(0.50,'#6a4e42');
+  cortexG.addColorStop(0.78,'#5a4038');
+  cortexG.addColorStop(1,'#3a2820');   // peripheral shadow
+  ctx.fillStyle=cortexG;ctx.fill();
+  ctx.clip(); // clip all brain content to oval
+
+  // ── Cortical surface micro-texture (gyral surface irregularity) ────────
+  // Fine stippled texture to simulate moist glistening cortex
+  for(let i=0;i<500;i++){
+    const ang=Math.random()*Math.PI*2;
+    const rr=Math.random();
+    const tx=cx+Math.cos(ang)*RX*rr, ty=cy+Math.sin(ang)*RY*rr;
+    const bright=Math.random();
+    ctx.fillStyle=`rgba(${130+bright*60},${90+bright*40},${70+bright*30},${0.04+bright*0.04})`;
+    ctx.beginPath();ctx.arc(tx,ty,0.6+Math.random()*1.4,0,Math.PI*2);ctx.fill();
+  }
+
+  // ── Deep sulci — multi-pass for realism ───────────────────────────────
+  // Pass 1: wide dark trench (deep sulcal floor)
+  sulci.forEach(s=>{
+    ctx.beginPath();
+    ctx.moveTo(cx+s.pts[0][0],cy+s.pts[0][1]);
+    for(let i=1;i<s.pts.length;i++){
+      const pm=s.pts[Math.max(0,i-1)], p=s.pts[i], pn=s.pts[Math.min(s.pts.length-1,i+1)];
+      ctx.quadraticCurveTo(cx+pm[0],cy+pm[1],cx+(p[0]+pn[0])*.5,cy+(p[1]+pn[1])*.5);
+    }
+    ctx.strokeStyle='rgba(22,10,8,.95)';ctx.lineWidth=s.w+4;ctx.stroke();
+  });
+  // Pass 2: narrower mid-tone (sulcal walls)
+  sulci.forEach(s=>{
+    ctx.beginPath();
+    ctx.moveTo(cx+s.pts[0][0],cy+s.pts[0][1]);
+    for(let i=1;i<s.pts.length;i++){
+      const pm=s.pts[Math.max(0,i-1)], p=s.pts[i], pn=s.pts[Math.min(s.pts.length-1,i+1)];
+      ctx.quadraticCurveTo(cx+pm[0],cy+pm[1],cx+(p[0]+pn[0])*.5,cy+(p[1]+pn[1])*.5);
+    }
+    ctx.strokeStyle='rgba(55,28,22,.75)';ctx.lineWidth=s.w+1;ctx.stroke();
+  });
+  // Pass 3: bright gyrus crest highlight (lit by overhead OR light)
+  gyriCrest.forEach(g=>{
+    ctx.beginPath();
+    ctx.moveTo(cx+g.pts[0][0],cy+g.pts[0][1]);
+    for(let i=1;i<g.pts.length;i++){
+      const pm=g.pts[Math.max(0,i-1)], p=g.pts[i], pn=g.pts[Math.min(g.pts.length-1,i+1)];
+      ctx.quadraticCurveTo(cx+pm[0],cy+pm[1],cx+(p[0]+pn[0])*.5,cy+(p[1]+pn[1])*.5);
+    }
+    ctx.strokeStyle=g.col;ctx.lineWidth=g.w;ctx.stroke();
+  });
+
+  // ── Interhemispheric fissure (falx cerebri midline) ────────────────────
+  // Deep shadow trench
+  ctx.beginPath();ctx.moveTo(cx+2,cy-RY*.98);ctx.bezierCurveTo(cx-8,cy-RY*.5,cx+7,cy,cx-5,cy+RY*.82);
+  ctx.strokeStyle='rgba(10,4,4,.97)';ctx.lineWidth=8;ctx.stroke();
+  ctx.strokeStyle='rgba(30,12,10,.8)';ctx.lineWidth=4;ctx.stroke();
+  ctx.strokeStyle='rgba(60,28,22,.4)';ctx.lineWidth=2;ctx.stroke();
+
+  // ── Pial surface vessels (arteries & draining veins) ───────────────────
+  pialVessels.forEach(v=>{
+    ctx.beginPath();
+    ctx.moveTo(cx+v.pts[0][0],cy+v.pts[0][1]);
+    for(let i=1;i<v.pts.length;i++){
+      const pm=v.pts[Math.max(0,i-1)], p=v.pts[i], pn=v.pts[Math.min(v.pts.length-1,i+1)];
+      ctx.quadraticCurveTo(cx+pm[0],cy+pm[1],cx+(p[0]+pn[0])*.5,cy+(p[1]+pn[1])*.5);
+    }
+    // Dark under-stroke (vessel shadow)
+    ctx.strokeStyle='rgba(40,0,0,.6)';ctx.lineWidth=v.w+2;ctx.stroke();
+    // Main vessel colour
+    ctx.strokeStyle=v.col;ctx.lineWidth=v.w;ctx.stroke();
+    // Highlight along top edge
+    ctx.strokeStyle='rgba(220,160,140,.15)';ctx.lineWidth=v.w*.4;ctx.stroke();
+  });
+
+  // ── Corpus callosum / midline white matter ──────────────────────────────
+  ctx.beginPath();ctx.ellipse(cx,cy,RX*.08,RY*.36,0,0,Math.PI*2);
+  const ccG=ctx.createRadialGradient(cx,cy,0,cx,cy,RX*.08);
+  ccG.addColorStop(0,'rgba(100,88,80,.8)');
+  ccG.addColorStop(1,'rgba(60,48,40,.5)');
+  ctx.fillStyle=ccG;ctx.fill();
+  ctx.strokeStyle='rgba(80,60,50,.4)';ctx.lineWidth=1.5;ctx.stroke();
+
+  // ── Surgical field moisture — specular gloss highlights ────────────────
+  // Large diffuse overhead light
+  const light=ctx.createRadialGradient(cx-RX*.08,cy-RY*.22,0,cx-RX*.08,cy-RY*.22,RX*.7);
+  light.addColorStop(0,'rgba(255,230,200,.09)');
+  light.addColorStop(0.4,'rgba(230,200,170,.04)');
+  light.addColorStop(1,'rgba(200,170,140,0)');
+  ctx.fillStyle=light;ctx.fillRect(cx-RX,cy-RY,RX*2,RY*2);
+  // Smaller bright specular spot (surgical lamp)
+  const spec=ctx.createRadialGradient(cx-RX*.22,cy-RY*.28,0,cx-RX*.22,cy-RY*.28,RX*.18);
+  spec.addColorStop(0,'rgba(255,240,220,.14)');
+  spec.addColorStop(1,'rgba(255,240,220,0)');
+  ctx.fillStyle=spec;ctx.fillRect(cx-RX,cy-RY,RX*2,RY*2);
+  // Moist sheen on gyrus crests (thin specular line)
+  gyriCrest.forEach(g=>{
+    if(Math.random()>0.5) return;
+    ctx.beginPath();
+    ctx.moveTo(cx+g.pts[0][0],cy+g.pts[0][1]);
+    for(let i=1;i<g.pts.length;i++){
+      const pm=g.pts[Math.max(0,i-1)], p=g.pts[i], pn=g.pts[Math.min(g.pts.length-1,i+1)];
+      ctx.quadraticCurveTo(cx+pm[0],cy+pm[1],cx+(p[0]+pn[0])*.5,cy+(p[1]+pn[1])*.5);
+    }
+    ctx.strokeStyle='rgba(255,220,190,.07)';ctx.lineWidth=0.8;ctx.stroke();
+  });
+
+  ctx.restore();
+
+  // ── Outer drop shadow + rim lighting ────────────────────────────────────
+  const rim=ctx.createRadialGradient(cx,cy,RX*.92,cx,cy,RX*1.04);
+  rim.addColorStop(0,'rgba(0,0,0,0)');rim.addColorStop(1,'rgba(0,0,0,.65)');
+  ctx.beginPath();ctx.ellipse(cx,cy,RX*1.04,RY*1.04,0,0,Math.PI*2);
+  ctx.fillStyle=rim;ctx.fill();
+}
+
+function drawNeurons(tick) {
+  neurons.forEach(n=>{
+    const base=n.damage>0?[220+Math.floor(35*n.damage),Math.floor(60*(1-n.damage)),10]:[50,150,230];
+    const alpha=.55+.35*(1-n.damage);
+    // Axons with subtle electric shimmer
+    const shimmer=Math.sin(tick*.05+n.x*.01)*2;
+    ctx.strokeStyle=`rgba(${base[0]},${base[1]},${base[2]},${alpha*.55})`; ctx.lineWidth=1;
+    n.ax.forEach(a=>{ ctx.beginPath(); ctx.moveTo(n.x,n.y); ctx.lineTo(n.x+a[0]+shimmer,n.y+a[1]+Math.cos(tick*.04+n.y*.01)*1.5); ctx.stroke(); });
+    // Glow halo
+    if(n.damage<0.5){
+      const glow=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*3.5);
+      glow.addColorStop(0,`rgba(${base[0]},${base[1]},${base[2]},.12)`);
+      glow.addColorStop(1,`rgba(${base[0]},${base[1]},${base[2]},0)`);
+      ctx.beginPath();ctx.arc(n.x,n.y,n.r*3.5,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+    }
+    // Body
+    ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(${base[0]},${base[1]},${base[2]},${alpha})`; ctx.fill();
+    // Damage halo — thermal spread visible as orange glow
+    if(n.damage>.2){
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r+4+n.damage*7,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,80,0,${n.damage*.2})`; ctx.fill();
+      ctx.strokeStyle=`rgba(255,120,0,${n.damage*.4})`;ctx.lineWidth=1;ctx.stroke();
+    }
+  });
+}
+
+// ════════════════════════════════════════════════
+//  HEAT RINGS
+// ════════════════════════════════════════════════
+function updateHeatRings(dt) { heatRings.forEach(r=>r.t+=dt); heatRings=heatRings.filter(r=>r.t<3.5); }
+function drawHeatRings() {
+  heatRings.forEach(r=>{
+    const prog=r.t/3.5, rad=r.maxR*prog, al=r.alpha*(1-prog)*.7;
+    const g=ctx.createRadialGradient(r.x,r.y,0,r.x,r.y,rad);
+    g.addColorStop(0,`rgba(255,140,0,${al*.8})`); g.addColorStop(.5,`rgba(255,50,0,${al*.4})`); g.addColorStop(1,`rgba(180,0,0,0)`);
+    ctx.beginPath(); ctx.arc(r.x,r.y,rad,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+  });
+}
+function spawnHeat(x,y,radius,safe) {
+  if(!safe){ heatRings.push({x,y,t:0,maxR:radius,alpha:.9}); neurons.forEach(n=>{ const d=Math.sqrt((n.x-x)**2+(n.y-y)**2); if(d<radius*.8) n.damage=Math.min(1,n.damage+(1-d/(radius*.8))*.4); }); }
+}
+
+// ════════════════════════════════════════════════
+//  FLOAT LABELS (physics callouts)
+// ════════════════════════════════════════════════
+function spawnCallout(x,y,text,col='#fbbf24',dur=2.8,space='world'){
+  floatLabels.push({x,y,text,col,t:0,maxT:dur,space,vy:0});
+}
+function drawCallouts(space){
+  floatLabels.forEach(lb=>{
+    if(lb.space!==space)return;
+    lb.t+=0.016;
+    const fy=lb.y-lb.t*22;
+    const fade=lb.t<0.3?lb.t/0.3:lb.t>lb.maxT-0.5?(lb.maxT-lb.t)/0.5:1;
+    if(fade<=0)return;
+    ctx.save();
+    ctx.globalAlpha=fade;
+    ctx.font='bold 13px Courier New';
+    ctx.textAlign='center';
+    const w=ctx.measureText(lb.text).width+18;
+    roundRect(ctx,lb.x-w/2,fy-18,w,24,4);
+    ctx.fillStyle='rgba(5,10,20,.88)';ctx.fill();
+    ctx.strokeStyle=lb.col;ctx.lineWidth=1.2;ctx.stroke();
+    ctx.fillStyle=lb.col;
+    ctx.fillText(lb.text,lb.x,fy-1);
+    ctx.restore();
+  });
+  floatLabels=floatLabels.filter(lb=>lb.t<lb.maxT);
+}
+
+// ════════════════════════════════════════════════
+//  FORMULA FLASH
+// ════════════════════════════════════════════════
+// Term breakdowns: each entry is {expr, col, meaning}
+const FORMULA_TERMS = {
+  'L = √(4αt)': {
+    title: 'THERMAL DIFFUSION LENGTH',
+    terms: [
+      {expr:'L',  col:'#fbbf24', meaning:'How far heat has spread (in mm)'},
+      {expr:'α',  col:'#fb923c', meaning:'Thermal diffusivity — how fast heat moves through the tissue'},
+      {expr:'t',  col:'#facc15', meaning:'Time the heat source has been on (seconds)'},
+    ],
+    note: 'The longer you apply heat, the further it spreads — L grows with √t'
+  },
+  'α_brain ≈ α_blood': {
+    title: 'THERMAL DIFFUSIVITY COMPARISON',
+    terms: [
+      {expr:'α brain = 0.14 mm²/s', col:'#60a5fa', meaning:'How fast heat moves through brain tissue'},
+      {expr:'α blood = 0.13 mm²/s', col:'#f87171', meaning:'How fast heat moves through blood'},
+      {expr:'ratio = 1.07',          col:'#ef4444', meaning:'Nearly identical — you cannot aim heat'},
+    ],
+    note: 'Electricity heats both equally — it cannot tell the difference between vessel and neuron'
+  },
+  'I(z) = I₀ · e^(−μz)': {
+    title: 'BEER-LAMBERT LAW',
+    terms: [
+      {expr:'I(z)',  col:'#ffffff', meaning:'Laser intensity remaining at depth z'},
+      {expr:'I₀',   col:'#88aaff', meaning:'Full laser power at the surface (100%)'},
+      {expr:'μ',    col:'#f87171', meaning:'Absorption coefficient — how strongly tissue absorbs this wavelength'},
+      {expr:'z',    col:'#4ade80', meaning:'Depth into the tissue (mm)'},
+      {expr:'e^(−μz)', col:'#facc15', meaning:'Exponential decay — higher μ = beam dies faster'},
+    ],
+    note: 'High μ in blood + near-zero μ in brain = 454nm only heats the vessel'
+  },
+  'TRT = d² / (4α)': {
+    title: 'THERMAL RELAXATION TIME',
+    terms: [
+      {expr:'TRT',  col:'#22cc88', meaning:'How long before heat escapes the vessel (seconds)'},
+      {expr:'d',    col:'#34d399', meaning:'Diameter of the blood vessel (mm)'},
+      {expr:'d²',   col:'#6ee7b7', meaning:'Larger vessels hold heat longer — TRT scales with size'},
+      {expr:'α',    col:'#fb923c', meaning:'Thermal diffusivity — how fast heat diffuses outward'},
+    ],
+    note: 'Fire for less than TRT and heat stays inside the vessel — exceed it and brain tissue burns'
+  },
+};
+
+function flashFormula(text, col='#fbbf24', dur=6) {
+  formulaFlashes = formulaFlashes.filter(f=>f.text!==text);
+  formulaFlashes.push({text, col, t:0, maxT:dur});
+}
+
+function drawFormulaFlashes() {
+  if(!formulaFlashes.length) return;
+  const W=gc.width, H=gc.height;
+  // Only draw most recent flash (avoids stacking)
+  const f = formulaFlashes[formulaFlashes.length-1];
+  f.t += 0.016;
+  const fadeIn  = Math.min(f.t/0.5, 1);
+  const fadeOut = f.t > f.maxT-1.0 ? Math.max(0,(f.maxT-f.t)/1.0) : 1;
+  const alpha   = fadeIn * fadeOut;
+
+  if(alpha > 0) {
+    const def = FORMULA_TERMS[f.text];
+    const terms = def ? def.terms : [];
+    const ph = def ? 52 + terms.length*26 + 28 : 70;
+    const pw = Math.min(W*0.82, 680);
+    const px = W/2 - pw/2;
+    const py = H*0.05;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Panel background
+    roundRect(ctx, px, py, pw, ph, 10);
+    ctx.fillStyle = 'rgba(2,4,16,0.96)'; ctx.fill();
+    ctx.strokeStyle = f.col; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // Title
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 10px Courier New';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillText(def ? def.title : '', px+16, py+16);
+
+    // Big formula
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 34px Courier New';
+    ctx.shadowColor = f.col; ctx.shadowBlur = 20;
+    ctx.fillStyle = f.col;
+    ctx.fillText(f.text, W/2, py+48);
+    ctx.shadowBlur = 0;
+
+    // Term breakdown
+    if(def) {
+      let ty = py + 66;
+      terms.forEach(tr=>{
+        const exprW = 200;
+        ctx.font = 'bold 12px Courier New';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = tr.col;
+        ctx.fillText(tr.expr, px + exprW, ty);
+        ctx.font = '11px Courier New';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillText('— ' + tr.meaning, px + exprW + 10, ty);
+        ty += 26;
+      });
+
+      // Note line
+      ctx.font = 'italic 10px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillText(def.note, W/2, py + ph - 10);
+    }
+
+    ctx.restore();
+  }
+
+  formulaFlashes = formulaFlashes.filter(f=>f.t < f.maxT);
+}
+
+// ════════════════════════════════════════════════
+//  SCORE POPS
+// ════════════════════════════════════════════════
+function spawnScorePop(x,y,delta){
+  scorePops.push({x,y,text:(delta>0?'+':'')+delta,col:delta>0?'#22c55e':'#ef4444',t:0,maxT:2.0});
+}
+function drawScorePops(){
+  scorePops.forEach(p=>{
+    p.t+=0.016;
+    const fy=p.y-p.t*32;
+    const fade=p.t>1.2?(p.maxT-p.t)/(p.maxT-1.2):1;
+    if(fade<=0)return;
+    const scale=1+0.5*Math.max(0,0.3-p.t);
+    ctx.save();
+    ctx.globalAlpha=fade;
+    ctx.translate(p.x,fy);ctx.scale(scale,scale);
+    ctx.font='bold 20px Courier New';ctx.textAlign='center';
+    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillText(p.text,2,2);
+    ctx.fillStyle=p.col;ctx.fillText(p.text,0,0);
+    ctx.restore();
+  });
+  scorePops=scorePops.filter(p=>p.t<p.maxT);
+}
+
+// ════════════════════════════════════════════════
+//  PARTICLES
+// ════════════════════════════════════════════════
+function spawnBurst(x,y,type){
+  const cols=type==='seal'?['#4ade80','#22c55e','#88aaff','#5ba4ff','#ffffff']:['#ef4444','#f87171','#fbbf24','#ff8844','#ff4400'];
+  for(let i=0;i<24;i++){
+    const a=Math.random()*Math.PI*2, sp=1.5+Math.random()*4;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:2+Math.random()*3,col:cols[Math.floor(Math.random()*cols.length)],life:1,decay:0.018+Math.random()*0.012});
+  }
+}
+function updateParticles(dt){
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vx*=0.94;p.vy*=0.94;p.life-=p.decay*dt*60;});
+  particles=particles.filter(p=>p.life>0);
+}
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.save();ctx.globalAlpha=Math.max(0,p.life);
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle=p.col;ctx.fill();ctx.restore();
+  });
+}
+
+// ════════════════════════════════════════════════
+//  STAGE CARD
+// ════════════════════════════════════════════════
+function showStageCard(stageName,concept){
+  stageCard={text:stageName,subtext:concept,t:0,maxT:3.5};
+}
+function drawStageCard(dt){
+  if(!stageCard)return;
+  stageCard.t+=dt;
+  if(stageCard.t>stageCard.maxT){stageCard=null;return;}
+  const slideIn=Math.min(stageCard.t/0.4,1);
+  const slideOut=stageCard.t>stageCard.maxT-0.6?(stageCard.maxT-stageCard.t)/0.6:1;
+  const alpha=slideIn*slideOut;
+  const W=gc.width,cx=W/2;
+  const cy=72+(1-slideIn)*-70;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  roundRect(ctx,cx-230,cy-30,460,58,7);
+  ctx.fillStyle='#040c18';ctx.fill();
+  ctx.strokeStyle='#5ba4ff';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#5ba4ff';ctx.font='bold 17px Courier New';ctx.textAlign='center';
+  ctx.fillText(stageCard.text,cx,cy-4);
+  ctx.fillStyle='#fbbf24';ctx.font='11px Courier New';
+  ctx.fillText(stageCard.subtext,cx,cy+16);
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════
+//  TRT RING
+// ════════════════════════════════════════════════
+function drawTRTRing(){
+  if(!trtRing)return;
+  const {x,y,r,trt,pulse,elapsed,exceeded}=trtRing;
+  const prog=Math.min(elapsed/trt,1.2);
+  ctx.save();
+  // Track
+  ctx.beginPath();ctx.arc(x,y,r,-Math.PI/2,3*Math.PI/2);
+  ctx.strokeStyle='rgba(30,60,90,.7)';ctx.lineWidth=7;ctx.stroke();
+  // Elapsed fill
+  ctx.beginPath();ctx.arc(x,y,r,-Math.PI/2,-Math.PI/2+prog*Math.PI*2);
+  ctx.strokeStyle=exceeded?'#ef4444':'#5ba4ff';ctx.lineWidth=7;ctx.stroke();
+  // Pulse marker
+  const pm=Math.min(pulse/trt,1);
+  const pa=-Math.PI/2+pm*Math.PI*2;
+  ctx.beginPath();
+  ctx.moveTo(x+Math.cos(pa)*(r-12),y+Math.sin(pa)*(r-12));
+  ctx.lineTo(x+Math.cos(pa)*(r+12),y+Math.sin(pa)*(r+12));
+  ctx.strokeStyle=pulse<trt?'#22c55e':'#ef4444';ctx.lineWidth=3;ctx.stroke();
+  // Labels
+  ctx.fillStyle=exceeded?'#ef4444':'#7de8b0';
+  ctx.font='bold 12px Courier New';ctx.textAlign='center';
+  ctx.fillText(elapsed.toFixed(2)+'s / TRT '+trt.toFixed(3)+'s',x,y+r+20);
+  if(exceeded){
+    const fl=0.5+0.5*Math.sin(tick*0.5);
+    ctx.fillStyle=`rgba(239,68,68,${fl})`;
+    ctx.font='bold 14px Courier New';
+    ctx.fillText('⚠ EXCEEDED TRT',x,y-r-14);
+  }
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════
+//  BLOOD
+// ════════════════════════════════════════════════
+function spawnBloodDrop(x,y) {
+  for(let i=0;i<6;i++){
+    const a=-Math.PI/2+(Math.random()-.5)*1.4; // mostly upward arc
+    const s=1.2+Math.random()*2.8;
+    bloodDrops.push({x,y,r:1.5+Math.random()*3,a:.9,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.5,grav:0.12+Math.random()*.08});
+  }
+}
+function updateBlood(dt) {
+  bloodDrops.forEach(b=>{
+    b.x+=b.vx; b.y+=b.vy;
+    b.vy+=b.grav; // gravity
+    b.vx*=.98;
+    b.a-=.006*dt;
+  });
+  bloodDrops=bloodDrops.filter(b=>b.a>0);
+}
+function drawBlood() {
+  bloodDrops.forEach(b=>{
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(180,8,8,${b.a})`;ctx.fill();
+    // tiny trail
+    ctx.beginPath();ctx.arc(b.x-b.vx*.8,b.y-b.vy*.8,b.r*.5,0,Math.PI*2);
+    ctx.fillStyle=`rgba(120,5,5,${b.a*.4})`;ctx.fill();
+  });
+}
+
+// ════════════════════════════════════════════════
+//  VESSEL DRAWING
+// ════════════════════════════════════════════════
+function drawVessel(v, tick, targeted=false) {
+  const pr=v.dmm*90+12;
+  const pulseF=Math.sin(tick*0.11*HR/72)*.1+1;
+  const r=pr*pulseF;
+  const {x,y}=v;
+
+  if(v.state==='sealed'){
+    // Glow ring
+    const sg=ctx.createRadialGradient(x,y,r*.5,x,y,r*2.2);
+    sg.addColorStop(0,'rgba(34,197,94,.18)');sg.addColorStop(1,'rgba(34,197,94,0)');
+    ctx.beginPath();ctx.arc(x,y,r*2.2,0,Math.PI*2);ctx.fillStyle=sg;ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='#081a0e';ctx.fill();
+    ctx.strokeStyle='#22c55e';ctx.lineWidth=2;ctx.stroke();
+    ctx.strokeStyle='#4ade80';ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(x-9,y);ctx.lineTo(x-2,y+8);ctx.lineTo(x+11,y-10);ctx.stroke();
+    ctx.fillStyle='#22c55e';ctx.font='bold 10px Courier New';ctx.textAlign='center';
+    ctx.fillText('SEALED',x,y+r+16);ctx.textAlign='left';
+    return;
+  }
+
+  if(v.state==='damaged'){
+    if(Math.random()>.55) spawnHeat(x,y,r+28,false);
+    if(tick%8===0) spawnBloodDrop(x,y);
+    const dg=ctx.createRadialGradient(x,y,0,x,y,r*2.5);
+    dg.addColorStop(0,'rgba(239,68,68,.25)');dg.addColorStop(1,'rgba(239,68,68,0)');
+    ctx.beginPath();ctx.arc(x,y,r*2.5,0,Math.PI*2);ctx.fillStyle=dg;ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='#1a0404';ctx.fill();
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=2;ctx.stroke();
+    ctx.strokeStyle='#ff4444';ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(x-9,y-9);ctx.lineTo(x+9,y+9);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x+9,y-9);ctx.lineTo(x-9,y+9);ctx.stroke();
+    ctx.fillStyle='#ef4444';ctx.font='bold 9px Courier New';ctx.textAlign='center';
+    ctx.fillText('THERMAL BREACH',x,y+r+16);ctx.textAlign='left';
+    return;
+  }
+
+  // ── BLEEDING VESSEL ─────────────────────────────
+  const healthF=health/100;
+  const urgency=1-healthF; // 0=calm, 1=critical
+
+  // Outer danger aura — grows as health drops
+  const auraR=r*(2.0+urgency*1.8);
+  const ag=ctx.createRadialGradient(x,y,r*.8,x,y,auraR);
+  ag.addColorStop(0,`rgba(180,0,0,${.18+urgency*.22})`);
+  ag.addColorStop(1,'rgba(80,0,0,0)');
+  ctx.beginPath();ctx.arc(x,y,auraR,0,Math.PI*2);ctx.fillStyle=ag;ctx.fill();
+
+  // Live THERMAL ATTACK ZONE — L=√(4αt) expanding ring
+  // Each vessel has its own bleed timer
+  if(!v.bleedTimer) v.bleedTimer=Math.random()*10;
+  v.bleedTimer+=0.016;
+  const Lmm=Math.sqrt(4*0.14*v.bleedTimer);
+  const Lpx=Lmm*55; // scale mm → pixels
+  if(GSTATE==='SURGERY' && v.bleedTimer>0.1){
+    const ringR=r+Lpx;
+    const rg=ctx.createRadialGradient(x,y,r,x,y,ringR);
+    rg.addColorStop(0,`rgba(255,100,0,${.28+urgency*.2})`);
+    rg.addColorStop(0.6,`rgba(255,50,0,${.12+urgency*.1})`);
+    rg.addColorStop(1,'rgba(200,0,0,0)');
+    ctx.beginPath();ctx.arc(x,y,ringR,0,Math.PI*2);ctx.fillStyle=rg;ctx.fill();
+    // The formula label on the ring
+    ctx.save();
+    ctx.font='bold 11px Courier New';ctx.textAlign='center';
+    const formulaY=y-ringR-8;
+    const fw=ctx.measureText('L=√(4αt)='+Lmm.toFixed(2)+'mm').width+16;
+    roundRect(ctx,x-fw/2,formulaY-16,fw,20,3);
+    ctx.fillStyle=`rgba(20,5,0,${.85+urgency*.1})`;ctx.fill();
+    ctx.strokeStyle=`rgba(255,${Math.floor(100+urgency*120)},0,${.7+urgency*.3})`;ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle=`rgb(255,${Math.floor(140+urgency*115)},0)`;
+    ctx.fillText('L=√(4αt)='+Lmm.toFixed(2)+'mm',x,formulaY-1);
+    ctx.restore();
+    // Ring boundary tick marks
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,80,0,${.5+urgency*.4})`;ctx.lineWidth=1.5;ctx.setLineDash([4,6]);
+    ctx.beginPath();ctx.arc(x,y,ringR,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // Vessel body
+  const vg=ctx.createRadialGradient(x-r*.25,y-r*.25,0,x,y,r);
+  vg.addColorStop(0,'#ff9999');vg.addColorStop(.5,'#dd2222');vg.addColorStop(1,'#5a0000');
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=vg;ctx.fill();
+
+  // Pulsing bright rim
+  const rimAlpha=.5+.5*Math.sin(tick*.18*HR/72);
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.strokeStyle=`rgba(255,80,80,${rimAlpha})`;ctx.lineWidth=2;ctx.stroke();
+
+  // Spinning blood cells inside
+  for(let i=0;i<4;i++){
+    const ang=(tick*.05+i*1.57+v.id*.9)%(Math.PI*2);
+    const bx2=x+Math.cos(ang)*(r*.45),by2=y+Math.sin(ang)*(r*.45);
+    ctx.beginPath();ctx.ellipse(bx2,by2,3.5,2,ang,0,Math.PI*2);
+    ctx.fillStyle=`rgba(220,50,50,.7)`;ctx.fill();
+  }
+
+  // Blood spurts — rate scales with urgency and vessel size
+  const bleedRate=Math.max(3,18-Math.floor(urgency*12)-Math.floor(v.dmm*6));
+  if(tick%bleedRate===Math.floor(v.id*6.7)%bleedRate){
+    spawnBloodDrop(x,y-r*.6);
+    if(urgency>.4) spawnBloodDrop(x+r*.5,y);
+  }
+
+  // Target reticle
+  if(targeted){
+    const tr=r+16+5*Math.sin(tick*.18);
+    ctx.beginPath();ctx.arc(x,y,tr,0,Math.PI*2);
+    ctx.strokeStyle='rgba(91,164,255,.9)';ctx.lineWidth=2;ctx.setLineDash([8,4]);ctx.stroke();ctx.setLineDash([]);
+    // Cross-hairs
+    ctx.strokeStyle='rgba(91,164,255,.5)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x-tr-6,y);ctx.lineTo(x-r-2,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x+r+2,y);ctx.lineTo(x+tr+6,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y-tr-6);ctx.lineTo(x,y-r-2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y+r+2);ctx.lineTo(x,y+tr+6);ctx.stroke();
+  }
+
+  // Label + diameter
+  ctx.textAlign='center';ctx.font='bold 10px Courier New';
+  ctx.fillStyle='#fbbf24';ctx.fillText(v.label||'',x,y+r+(GSTATE==='SURGERY'?Lpx+26:22));
+  ctx.fillStyle='#5a7a92';ctx.font='9px Courier New';
+  ctx.fillText('∅ '+v.dmm+'mm',x,y+r+(GSTATE==='SURGERY'?Lpx+38:34));
+  ctx.textAlign='left';
+}
+
+// ════════════════════════════════════════════════
+//  VESSEL ARROWS (guidance)
+// ════════════════════════════════════════════════
+function drawVesselArrows(tick) {
+  if(!showVesselArrows) return;
+  const bounce = Math.sin(tick * 0.12) * 7;
+  vessels.forEach(v => {
+    if(v.state !== 'bleeding') return;
+    if(selectedV === v.id) return;
+    const r = v.dmm * 90 + 12;
+    const ax = v.x;
+    const ay = v.y - r - 28 - bounce;
+    ctx.save();
+    ctx.fillStyle = 'rgba(251,191,36,0.9)';
+    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay + 14);
+    ctx.lineTo(ax - 10, ay);
+    ctx.lineTo(ax - 4, ay);
+    ctx.lineTo(ax - 4, ay - 10);
+    ctx.lineTo(ax + 4, ay - 10);
+    ctx.lineTo(ax + 4, ay);
+    ctx.lineTo(ax + 10, ay);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  });
+}
+
+// ════════════════════════════════════════════════
+//  LASER BEAM
+// ════════════════════════════════════════════════
+function drawLaser(beam, tick) {
+  if(!beam) return;
+  beam.t++;
+  const {x1,y1,x2,y2,safe}=beam;
+  const col=safe?'#88aaff':'#ff8844';
+  ctx.save();
+  ctx.shadowColor=col; ctx.shadowBlur=22;
+  ctx.strokeStyle=col; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.shadowBlur=6; ctx.lineWidth=1.5; ctx.strokeStyle='#ffffff'; ctx.stroke();
+  ctx.restore();
+  const np=8;
+  for(let i=0;i<np;i++){
+    const t=((beam.t*3+i*(100/np))%100)/100;
+    const px=x1+(x2-x1)*t, py=y1+(y2-y1)*t;
+    ctx.beginPath(); ctx.arc(px,py,2,0,Math.PI*2);
+    ctx.fillStyle=`rgba(180,220,255,${.8-t*.5})`; ctx.fill();
+  }
+  if(safe){ const af=.5+.5*Math.sin(beam.t*.4); ctx.beginPath(); ctx.arc(x2,y2,12+af*5,0,Math.PI*2); ctx.fillStyle=`rgba(100,180,255,${af*.35})`; ctx.fill(); }
+}
+
+// ════════════════════════════════════════════════
+//  BRAIN REGION LABELS
+// ════════════════════════════════════════════════
+// Anatomical regions drawn as permanent subtle labels on the brain surface.
+// In surgery mode, vessel connector lines also appear.
+const BRAIN_REGIONS = [
+  // label, dx_frac, dy_frac (relative to brain centre cx/cy scaled by RX/RY)
+  {name:'Frontal Lobe',    dx:-0.42, dy:-0.58, anchor:'right'},
+  {name:'Frontal Lobe',    dx: 0.42, dy:-0.55, anchor:'left'},
+  {name:'Parietal Lobe',  dx:-0.38, dy: 0.48, anchor:'right'},
+  {name:'Parietal Lobe',  dx: 0.40, dy: 0.50, anchor:'left'},
+  {name:'Occipital Lobe', dx:-0.14, dy: 0.82, anchor:'right'},
+  {name:'Occipital Lobe', dx: 0.18, dy: 0.80, anchor:'left'},
+  {name:'Temporal Lobe',  dx:-0.80, dy: 0.18, anchor:'right'},
+  {name:'Temporal Lobe',  dx: 0.78, dy: 0.22, anchor:'left'},
+  {name:'Central Sulcus', dx:-0.55, dy: 0.10, anchor:'right'},
+  {name:'Central Sulcus', dx: 0.52, dy: 0.08, anchor:'left'},
+];
+
+// Vessel anatomical descriptions — set once in startSurgery, keyed by vessel id
+const VESSEL_ANATOMY = {
+  0: {region:'Left Frontal Lobe',   vessel:'Branch of ACA',   note:'Ant. Cerebral Artery territory'},
+  1: {region:'Right Frontal Lobe',  vessel:'Branch of MCA',   note:'Mid. Cerebral Artery territory'},
+  2: {region:'Left Parietal Lobe',  vessel:'Cortical vein',   note:'Superior sagittal sinus drainage'},
+  3: {region:'Right Temporal Lobe', vessel:'Branch of MCA',   note:'Sylvian fissure vessel'},
+};
+
+function drawBrainLabels() {
+  if(!brainCache) return;
+  const {cx,cy,RX,RY} = brainCache;
+  ctx.save();
+
+  // ── Static anatomical region labels ─────────────
+  BRAIN_REGIONS.forEach(r => {
+    const lx = cx + r.dx * RX;
+    const ly = cy + r.dy * RY;
+    ctx.font = '9px Courier New';
+    ctx.textAlign = r.anchor === 'right' ? 'right' : 'left';
+    // Background chip
+    const tw = ctx.measureText(r.name).width;
+    const bx = r.anchor === 'right' ? lx - tw - 8 : lx;
+    roundRect(ctx, bx - 2, ly - 11, tw + 12, 15, 3);
+    ctx.fillStyle = 'rgba(2,8,14,.72)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(30,70,50,.5)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(80,160,100,.7)';
+    ctx.fillText(r.name, r.anchor === 'right' ? lx - 4 : lx + 4, ly);
+  });
+
+  ctx.restore();
+}
+
+function drawVesselLabels() {
+  if(GSTATE !== 'SURGERY' && GSTATE !== 'OUTCOME') return;
+  if(!brainCache) return;
+
+  ctx.save();
+  surgVessels.forEach(v => {
+    const anat = VESSEL_ANATOMY[v.id];
+    if(!anat) return;
+    const vr = v.dmm * 90 + 12;
+
+    // Connector line from vessel edge to label badge
+    // Badge offset — push away from vessel centre toward edge of brain
+    const offsets = [
+      {lx: v.x - 115, ly: v.y - 60},  // vessel A — top-left badge
+      {lx: v.x + 20,  ly: v.y - 65},  // vessel B — top-right badge
+      {lx: v.x - 115, ly: v.y + 50},  // vessel C — bottom-left badge
+      {lx: v.x + 20,  ly: v.y + 55},  // vessel D — bottom-right badge
+    ];
+    const off = offsets[v.id];
+
+    const lineCol = v.state === 'sealed' ? 'rgba(34,197,94,.6)'
+                  : v.state === 'damaged' ? 'rgba(239,68,68,.6)'
+                  : 'rgba(251,191,36,.55)';
+    const badgeCol = v.state === 'sealed' ? '#22c55e'
+                   : v.state === 'damaged' ? '#ef4444'
+                   : '#fbbf24';
+
+    // Line from vessel rim to badge
+    const angle = Math.atan2(off.ly - v.y, off.lx - v.x);
+    const lx1 = v.x + Math.cos(angle) * (vr + 4);
+    const ly1 = v.y + Math.sin(angle) * (vr + 4);
+    ctx.beginPath();
+    ctx.moveTo(lx1, ly1);
+    ctx.lineTo(off.lx + 55, off.ly + 8);
+    ctx.strokeStyle = lineCol;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Badge
+    const bw = 130, bh = 46;
+    roundRect(ctx, off.lx, off.ly - 6, bw, bh, 4);
+    ctx.fillStyle = 'rgba(2,6,14,.88)';
+    ctx.fill();
+    ctx.strokeStyle = lineCol;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Vessel letter + state
+    ctx.font = 'bold 11px Courier New';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = badgeCol;
+    ctx.fillText('VESSEL ' + v.label.split('—')[0].trim(), off.lx + 7, off.ly + 8);
+
+    // Region
+    ctx.font = '9px Courier New';
+    ctx.fillStyle = 'rgba(160,200,180,.85)';
+    ctx.fillText(anat.region, off.lx + 7, off.ly + 20);
+
+    // Vessel type
+    ctx.fillStyle = 'rgba(100,150,130,.7)';
+    ctx.fillText(anat.vessel, off.lx + 7, off.ly + 31);
+
+    // Note / state
+    if(v.state === 'bleeding') {
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(anat.note, off.lx + 7, off.ly + 42);
+    } else if(v.state === 'sealed') {
+      ctx.fillStyle = '#22c55e';
+      ctx.fillText('HAEMOSTASIS ACHIEVED', off.lx + 7, off.ly + 42);
+    } else {
+      ctx.fillStyle = '#ef4444';
+      ctx.fillText('THERMAL BREACH', off.lx + 7, off.ly + 42);
+    }
+  });
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════
+//  MAIN RENDER LOOP
+// ════════════════════════════════════════════════
+let tick=0;
+function mainLoop(ts) {
+  const dt=Math.min((ts-(lastTS||ts))/1000,.1);
+  lastTS=ts; tick++;
+  resize();
+  updateVitals(dt); updateTimer(dt); updateHeatRings(dt); updateBlood(dt);
+  updateParticles(dt);
+  if(trtRing&&firingV!==null){trtRing.elapsed+=dt;if(trtRing.elapsed>=trtRing.trt){if(!trtRing.exceeded)triggerShake(6,0.3);trtRing.exceeded=true;}}
+  // Screen shake
+  if(shakeT>0){shakeT-=dt;const s=shakeI*(shakeT>0?1:0);gc.style.transform=`translate(${(Math.random()-.5)*s*2}px,${(Math.random()-.5)*s*2}px)`;} else {gc.style.transform='';shakeI=0;}
+  drawBrainBG();
+  applyCamera();
+  drawHeatRings(); drawBlood(); drawNeurons(tick);
+  drawBrainLabels();
+  if(GSTATE==='INTRO')        drawIntro(ts);
+  else if(GSTATE==='TOOL')    drawTool(dt);
+  else if(GSTATE==='WAVE')    drawWave(dt);
+  else if(GSTATE==='SURGERY') drawSurgery(dt);
+  if(microZoom) drawMicroZoom(dt);
+  else if(GSTATE==='OUTCOME') drawOutcome();
+  drawParticles();
+  drawScorePops();
+  drawCallouts('world');
+  drawVesselLabels();
+  drawTRTRing();
+  drawLaser(laserBeam, tick);
+  drawVesselArrows(tick);
+  restoreCamera();
+  drawStageCard(dt);
+  drawCallouts('screen');
+  drawFormulaFlashes();
+  drawZoomHUD();
+  drawActionPrompt();
+  if(GSTATE==='SURGERY'){ const bleeding=vessels.filter(v=>v.state==='bleeding').length; health=Math.max(0,health-bleeding*.012*dt); if(health<=0) triggerOutcome(false,'PATIENT CRITICAL'); }
+  requestAnimationFrame(mainLoop);
+}
+requestAnimationFrame(mainLoop);
+
+// ════════════════════════════════════════════════
+//  INTRO STATE
+// ════════════════════════════════════════════════
+let introT=0;
+function drawIntro(ts) {
+  introT+=0.016;
+  const W=gc.width,H=gc.height;
+  const flicker=introT<1?.2+.8*Math.random():1;
+  ctx.fillStyle=`rgba(5,12,22,${.6*flicker})`; ctx.fillRect(W/2-300,H/2-120,600,220);
+  ctx.strokeStyle=`rgba(14,42,74,${flicker})`; ctx.lineWidth=1; ctx.strokeRect(W/2-300,H/2-120,600,220);
+  ctx.textAlign='center';
+  ctx.fillStyle=`rgba(239,68,68,${Math.min(1,introT)*(.7+.3*Math.sin(introT*8))})`; ctx.font='bold 13px Courier New';
+  ctx.fillText('⚠  PATIENT CRITICAL — ACTIVE INTRACRANIAL BLEED  ⚠',W/2,H/2-76);
+  ctx.fillStyle=`rgba(91,164,255,${Math.min(1,introT-0.5)})`; ctx.font='bold 30px Courier New';
+  ctx.fillText('OR-454',W/2,H/2-32);
+  ctx.font='14px Courier New'; ctx.fillStyle=`rgba(200,220,234,${Math.min(1,introT-0.8)})`;
+  ctx.fillText('The Blue Scalpel — Neurosurgery Physics Simulator',W/2,H/2+2);
+  ctx.font='11px Courier New'; ctx.fillStyle=`rgba(91,164,255,${Math.min(1,introT-1.2)})`;
+  ctx.fillText('454 nm  ·  Selective Photothermolysis  ·  Thermal Relaxation Time',W/2,H/2+30);
+  ctx.fillStyle=`rgba(100,160,100,${Math.min(1,introT-1.6)})`;
+  ctx.fillText('You are the neurosurgeon. The patient is counting on your physics.',W/2,H/2+58);
+  ctx.fillStyle=`rgba(74,106,130,${Math.min(1,introT-2.0)*(.5+.5*Math.sin(introT*3))})`;
+  ctx.fillText('[ ENTER OPERATING ROOM ]',W/2,H/2+90);
+  ctx.textAlign='left';
+}
+
+showOverlay(
+  'OR-454: THE BLUE SCALPEL',
+  'A 47-year-old patient has an active intracranial hemorrhage. Standard bipolar electrosurgery is available — but you\'ve studied the physics. You know there\'s a better way.\n\nSeal the bleeding vessels using the 454 nm laser. Your Physics 4A knowledge is the only thing standing between this patient and permanent brain damage.',
+  'ENTER THE OPERATING ROOM'
+);
+speak(SCRIPT.intro, false);
+setNarr("Welcome. If you're here, you're likely a Physics 4A student. The formulas you've been studying — L=√(4αt), Beer-Lambert, TRT — are not theoretical constructs. Right now, they are the intangible boundaries of this patient's safety.");
+setFormula(`<div class="frow"><span class="fl">Status</span><span class="fw">ACTIVE HEMORRHAGE</span></div>
+<div class="frow"><span class="fl">Vessels bleeding</span><span class="fw">4</span></div>
+<div class="frow"><span class="fl">Tool available</span><span class="fv">454 nm Laser</span></div>`);
+setCtrl('');
+initVoiceEngine();
+playMusic();
+
+window.ovAction = function() {
+  hideOverlay();
+  stopMusic();
+  playAmbient();
+  speak(SCRIPT.toolIntro, true);
+  startTool();
+};
+
+// ════════════════════════════════════════════════
+//  TOOL SELECT STATE
+// ════════════════════════════════════════════════
+let toolState='choose', bipolarT=0, bipolarX, bipolarY, bipolarR;
+let toolVessel=null, bfLiveL=0, bfLiveT=0;
+
+function startTool() {
+  GSTATE='TOOL';
+  unhlAll(); setAction(''); clearCanvasAction();
+  bfMilestones=[false,false,false];
+  showStageCard('STAGE 1 — THERMAL DIFFUSION','L = √(4αt)  ·  Why bipolar electrosurgery fails');
+  setStageLabel('STAGE 1<br>TOOL SELECT');
+  toolState='choose';
+  toolVessel={x:gc.width*.5, y:gc.height*.45, dmm:.6, label:'ACTIVE BLEED', state:'bleeding', id:0};
+  vessels=[toolVessel];
+  setNarr("The patient is bleeding. Your first instinct might be bipolar electrosurgery — the legacy tool. It passes current through tissue, inducing resistance heating. But let's examine what the physics tells us about heat spread in the brain.");
+  setFormula(`<div class="fbox">L = √(4αt)</div>
+<div class="frow"><span class="fl">α  brain tissue</span><span class="fv">0.14 mm²/s</span></div>
+<div class="frow"><span class="fl">α  blood</span><span class="fv">0.13 mm²/s</span></div>
+<div class="frow"><span class="fl">α_brain / α_blood</span><span class="fw">≈ 1.07  ⚠ NEARLY EQUAL</span></div>
+<div style="font-size:9px;color:#ef4444;margin-top:6px;">Heat spreads at nearly identical rates in brain tissue and blood.</div>`);
+  renderToolCtrl();
+  setTimeout(() => {
+    hl('.tool-btn.danger');
+    setAction('Click BIPOLAR FORCEPS to see electrosurgery in action');
+    setCanvasAction('Click BIPOLAR FORCEPS in the sidebar →');
+  }, 100);
+}
+
+function renderToolCtrl() {
+  if(toolState==='choose') {
+    setCtrl(`<div style="font-size:10px;color:#4a6a82;margin-bottom:8px;letter-spacing:1px;">SELECT YOUR INSTRUMENT:</div>
+<button class="tool-btn danger" onclick="chooseBipolar()">⚡ BIPOLAR FORCEPS<br><span style="font-size:9px;font-weight:normal;color:#7a4040">Legacy tool — resistive heating</span></button>
+<button class="tool-btn primary" onclick="chooseLaser()" id="laser-btn" style="opacity:.4;pointer-events:none;">〰 454 nm LASER<br><span style="font-size:9px;font-weight:normal;color:#4a6a92">Try bipolar first (protocol)</span></button>`);
+  } else if(toolState==='bipolar_done') {
+    setCtrl(`<div style="font-size:10px;color:#ef4444;margin-bottom:8px;">⚠ NEURAL DAMAGE — SWITCH TOOLS</div>
+<button class="tool-btn primary" onclick="chooseLaser()">〰 454 nm LASER<br><span style="font-size:9px;font-weight:normal;color:#4a6a92">Select targeted wavelength</span></button>`);
+    setTimeout(() => {
+      hl('.tool-btn.primary');
+      setAction('Switch to the 454nm LASER now');
+      setCanvasAction('Click 454nm LASER in the sidebar →');
+    }, 100);
+  }
+}
+
+window.chooseBipolar = function() {
+  if(toolState!=='choose') return;
+  toolState='bipolar_firing'; bipolarT=0;
+  bipolarX=toolVessel.x; bipolarY=toolVessel.y; bipolarR=0;
+  unhlAll(); setAction(''); clearCanvasAction();
+  setNarr("Applying bipolar forceps. Watch the formula: L=√(4αt). As time increases, heat spreads outward. Because α_brain ≈ α_blood, the thermal front invades neurons at nearly the same rate as it coagulates blood.");
+  speak(SCRIPT.bipolarFiring1, true);
+  triggerAlarm(true);
+  setTimeout(() => {
+    hl('#formula-panel');
+    setAction('Watch how L = √(4αt) grows — see how neurons are affected');
+    setCanvasAction('Watch the heat spread — neuron damage is live in the formula panel');
+  }, 200);
+};
+
+window.chooseLaser = function() {
+  if(toolState==='bipolar_done'||toolState==='choose') {
+    stopBipolar();
+    GSTATE='WAVE'; startWave();
+  }
+};
+
+function stopBipolar() { triggerAlarm(false); laserBeam=null; toolState='done'; }
+
+function drawTool(dt) {
+  const W=gc.width,H=gc.height;
+  if(toolVessel) drawVessel(toolVessel,tick);
+  if(toolState==='bipolar_firing') {
+    bipolarT+=dt; bfLiveT=bipolarT;
+    const Lmm=Math.sqrt(4*0.14*bipolarT); bfLiveL=Lmm; bipolarR=Lmm*55;
+
+    // ── Large persistent expanding orange zone (L=√4αt) ──────────────────
+    const ringR = bipolarR + (toolVessel ? toolVessel.dmm*90+12 : 18);
+    const urgency = Math.min(bipolarT/3.8, 1);
+
+    // Damage neurons inside the current heat radius every few frames
+    if(tick%6===0){
+      neurons.forEach(n=>{
+        const d=Math.hypot(n.x-bipolarX, n.y-bipolarY);
+        if(d < ringR) n.damage = Math.min(1, n.damage + (1-d/ringR)*0.04);
+      });
+    }
+
+    const rg = ctx.createRadialGradient(bipolarX,bipolarY, toolVessel?toolVessel.dmm*90:18, bipolarX,bipolarY, ringR);
+    rg.addColorStop(0, `rgba(255,100,0,${0.22+urgency*0.25})`);
+    rg.addColorStop(0.6, `rgba(255,50,0,${0.10+urgency*0.12})`);
+    rg.addColorStop(1, 'rgba(200,0,0,0)');
+    ctx.beginPath(); ctx.arc(bipolarX,bipolarY,ringR,0,Math.PI*2); ctx.fillStyle=rg; ctx.fill();
+    // Dashed ring boundary
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,100,0,${0.55+urgency*0.35})`; ctx.lineWidth=2; ctx.setLineDash([5,7]);
+    ctx.beginPath(); ctx.arc(bipolarX,bipolarY,ringR,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+
+    // Forceps prongs
+    const fy=bipolarY-bipolarR*.12-55;
+    ctx.strokeStyle='#aabbcc'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(bipolarX-20,fy); ctx.lineTo(bipolarX-7,bipolarY-12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bipolarX+20,fy); ctx.lineTo(bipolarX+7,bipolarY-12); ctx.stroke();
+    const sp=.5+.5*Math.sin(tick*.3);
+    ctx.strokeStyle=`rgba(255,220,80,${sp})`; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(bipolarX-7,bipolarY-12); ctx.bezierCurveTo(bipolarX,bipolarY-22,bipolarX,bipolarY-4,bipolarX+7,bipolarY-12); ctx.stroke();
+
+    // Formula label above the ring
+    const labelY=bipolarY-ringR-28;
+    ctx.save();
+    const fw=ctx.measureText(`L = √(4×0.14×${bipolarT.toFixed(2)}) = ${bfLiveL.toFixed(2)} mm`).width+24;
+    roundRect(ctx,bipolarX-fw/2,labelY-22,fw,26,4);
+    ctx.fillStyle='rgba(20,10,0,.9)'; ctx.fill();
+    ctx.strokeStyle=`rgba(255,${Math.floor(140+urgency*115)},0,0.9)`; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle=`rgb(255,${Math.floor(140+urgency*115)},0)`; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
+    ctx.fillText(`L = √(4×0.14×${bipolarT.toFixed(2)}) = ${bfLiveL.toFixed(2)} mm`,bipolarX,labelY-2);
+    ctx.restore();
+
+    ctx.fillStyle='#ef4444';ctx.font='bold 12px Courier New';ctx.textAlign='center';
+    ctx.fillText(`${neurons.filter(n=>n.damage>.2).length} neurons affected`,bipolarX,bipolarY+ringR+18);
+    ctx.textAlign='left';
+
+    // Milestone callouts — queue audio cues so they never overlap
+    if(bipolarT>=1&&!bfMilestones[0]){bfMilestones[0]=true;spawnCallout(bipolarX+70,bipolarY-60,'L = '+Math.sqrt(4*0.14*1).toFixed(2)+'mm at t=1s','#fbbf24',2.5,'world');queueCue('bipolarFiring2');}
+    if(bipolarT>=2&&!bfMilestones[1]){bfMilestones[1]=true;spawnCallout(bipolarX-80,bipolarY-80,'α_brain ≈ α_blood ⚠','#ef4444',2.5,'world');queueCue('bipolarFiring3');}
+    if(bipolarT>=3&&!bfMilestones[2]){bfMilestones[2]=true;spawnCallout(bipolarX,bipolarY-100,'Heat invades neurons!','#ef4444',2.5,'world');}
+
+    document.getElementById('formula-content').innerHTML=`<div class="fbox">L = √(4αt) = ${bfLiveL.toFixed(3)} mm</div>
+<div class="frow"><span class="fl">t elapsed</span><span class="fw">${bipolarT.toFixed(2)} s</span></div>
+<div class="frow"><span class="fl">Heat spread (L)</span><span class="fw">${bfLiveL.toFixed(3)} mm</span></div>
+<div class="frow"><span class="fl">Neurons damaged</span><span class="fw">${neurons.filter(n=>n.damage>.2).length}</span></div>`;
+
+    // Abort only after all 3 audio cues have finished playing
+    // bipolarFiring1 (26s) + firing2 (31s) + firing3 (19s) ≈ 76s total
+    // We abort when bipolarT>=3.8 AND the queue is empty (all narration done)
+    if(bipolarT>=3.8 && !_voicePlaying && _voiceQueue.length===0) {
+      toolState='bipolar_done';
+      triggerAlarm(false);
+      const finalL=Math.sqrt(4*0.14*bipolarT).toFixed(2);
+      unhlAll();
+      setNarr(`ABORT. In ${bipolarT.toFixed(1)} seconds, bipolar spread ${finalL} mm — hitting ${neurons.filter(n=>n.damage>.2).length} neurons. Because α_brain ≈ α_blood, we cannot selectively heat blood without heating brain. Switch to the 454nm laser.`);
+      queueCue('bipolarAbort');
+      addScore(-50); health=Math.max(0,health-15);
+      spawnScorePop(bipolarX,bipolarY,-50);
+      triggerShake(12,0.6);
+      renderToolCtrl();
+    }
+  }
+}
+
+// ════════════════════════════════════════════════
+//  WAVELENGTH CALIBRATION STATE
+// ════════════════════════════════════════════════
+// ── WAVE STATE DATA ──────────────────────────────
+const WAVES=[
+  {nm:454, label:'454 nm — Blue',    desc:'Soret band peak',   col:'#5588ff', muB:14.0, muT:0.08, correct:true},
+  {nm:700, label:'700 nm — Red',     desc:'Tissue window',     col:'#ff3333', muB:1.8,  muT:3.2,  correct:false},
+  {nm:1064,label:'1064 nm — Near-IR',desc:'Nd:YAG / water abs',col:'#ff8800', muB:0.9,  muT:6.5,  correct:false},
+];
+let waveCorrect=false, waveFired=[], waveBeam=null, waveAnimT=0, waveTestVessel=null;
+let selectedWave=null; // index into WAVES — which wavelength is loaded
+let microZoom=null; // {t, phase, zoomX, zoomY, scale, molecules[], photons[], coagPct}
+
+function startWave() {
+  GSTATE='WAVE';
+  unhlAll(); setAction(''); clearCanvasAction();
+  showStageCard('STAGE 2 — SELECTIVE PHOTOTHERMOLYSIS','I(z) = I₀·e^(−μz)  ·  Which wavelength targets haemoglobin?');
+  setStageLabel('STAGE 2<br>CALIBRATION');
+  waveCorrect=false; waveFired=[]; waveBeam=null; waveAnimT=0; selectedWave=null;
+  timerLeft=60; timerMax=60; timerRunning=true;
+  const W0=gc.width, H0=gc.height;
+  waveTestVessel={
+    x:W0*.5, y:H0*.48, dmm:.5, label:'TEST VESSEL', state:'bleeding', id:99, bleedTimer:5,
+    baseX:W0*.5, baseY:H0*.48,
+    moveAmp:55, moveSpeed:0.55, movePhase:Math.random()*Math.PI*2,
+  };
+  vessels=[waveTestVessel];
+  gc.onclick=onWaveClick;
+  setNarr("Select a wavelength from the sidebar to load it into the laser, then AIM at the moving vessel and CLICK to fire. Watch what Beer-Lambert law predicts for each one.");
+  speak(SCRIPT.waveIntro, true);
+  // waveHint plays after waveIntro finishes (~40s) — stored so it can be cancelled
+  window._waveHintTimer = setTimeout(()=>{ if(GSTATE==='WAVE') playCue('waveHint'); }, 41000);
+  setFormula(`<div class="fbox">I(z) = I₀ · e^(−μz)</div>
+<div class="frow"><span class="fl">μ  = absorption coefficient</span><span class="fv">higher = more absorbed</span></div>
+<div class="frow"><span class="fl">z  = depth into tissue</span><span class="fv">mm</span></div>
+<div class="frow"><span class="fl">Goal</span><span class="fv">high μ_blood, low μ_brain</span></div>
+<div style="font-size:9px;color:#7de8b0;margin-top:6px;">High μ_blood → all energy stops inside the vessel.<br>Low μ_brain → beam passes through neurons untouched.</div>`);
+  renderWaveCtrl();
+  setTimeout(()=>{
+    setAction('Fire each wavelength at the vessel — observe the result');
+    setCanvasAction('Click FIRE on each wavelength to test it →');
+  },100);
+}
+
+function renderWaveCtrl() {
+  const loaded = selectedWave!==null ? WAVES[selectedWave] : null;
+  let h=`<div style="font-size:10px;color:#4a6a82;margin-bottom:6px;letter-spacing:1px;">SELECT WAVELENGTH → AIM AT VESSEL → CLICK TO FIRE:</div>`;
+  WAVES.forEach((w,i)=>{
+    const result=waveFired[i];
+    const isSelected=selectedWave===i;
+    const firing=waveBeam&&waveBeam.waveIdx===i;
+    let borderCol=isSelected?w.col:result?(result.correct?'#22c55e':'#ef4444'):'#1a2a3a';
+    let bgCol=isSelected?`rgba(${w.col==='#5588ff'?'20,40,80':w.col==='#ff3333'?'40,8,8':'40,22,4'},.7)`:result?(result.correct?'rgba(8,40,16,.7)':'rgba(40,8,8,.7)'):'#020810';
+    let resultTxt='';
+    if(result){
+      if(result.correct) resultTxt=`<div style="font-size:9px;color:#22c55e;margin-top:3px;">✓ μ_blood=${w.muB} — ABSORBED IN VESSEL — brain spared</div>`;
+      else resultTxt=`<div style="font-size:9px;color:#ef4444;margin-top:3px;">✗ μ_brain=${w.muT} — BEAM HEATS BRAIN TISSUE</div>`;
+    }
+    const canSelect=!waveBeam&&(!result||!result.correct);
+    h+=`<div style="border:1px solid ${borderCol};background:${bgCol};border-radius:4px;padding:8px 10px;margin-bottom:5px;${isSelected?'box-shadow:0 0 8px '+w.col+'55;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:11px;color:${w.col};font-weight:bold;">${isSelected?'⚡ LOADED: ':''} ${w.label}</div>
+          <div style="font-size:9px;color:#4a6a82;">${w.desc} · μ_blood=${w.muB} · μ_brain=${w.muT}</div>
+        </div>
+        <div style="display:flex;gap:5px;align-items:center;">
+          ${canSelect&&!isSelected?`<button class="tool-btn primary" style="padding:5px 10px;font-size:9px;width:auto;" onclick="selectWave(${i})">LOAD</button>`:''}
+          ${isSelected&&!firing?`<span style="font-size:9px;color:${w.col};">AIM + CLICK</span>`:''}
+          ${firing?`<span style="font-size:9px;color:${w.col};animation:blink .4s infinite;">FIRING...</span>`:''}
+        </div>
+      </div>
+      ${resultTxt}
+    </div>`;
+  });
+  if(!loaded&&!waveCorrect) h+=`<div style="font-size:9px;color:#3a5a4a;margin-top:4px;padding:6px;border:1px solid #1a3a2a;border-radius:3px;">Click LOAD on a wavelength to arm the laser, then click the vessel on screen to fire.</div>`;
+  if(waveCorrect){
+    h+=`<button class="tool-btn success" onclick="proceedSurgery()" style="margin-top:6px;">ENTER OPERATING ROOM →</button>`;
+  }
+  setCtrl(h);
+}
+
+window.selectWave=(i)=>{
+  if(waveBeam) return;
+  selectedWave=i;
+  const w=WAVES[i];
+  setAction(`${w.label} loaded — aim at the moving vessel and CLICK to fire`);
+  setCanvasAction(`${w.nm}nm loaded — click the vessel to fire`);
+  renderWaveCtrl();
+};
+
+// onWaveClick: player clicks canvas to fire selected wavelength at vessel
+function onWaveClick(e) {
+  if(GSTATE!=='WAVE'||waveBeam||selectedWave===null||waveCorrect) return;
+  if(microZoom) return;
+  const rect=gc.getBoundingClientRect();
+  const sx=(e.clientX-rect.left)*(gc.width/rect.width);
+  const sy=(e.clientY-rect.top)*(gc.height/rect.height);
+  const v=waveTestVessel;
+  const hitR=v.dmm*90+22;
+  const dist=Math.hypot(sx-v.x, sy-v.y);
+  if(dist<hitR){
+    // Hit the vessel
+    fireWavelength(selectedWave, v.x, v.y);
+  } else {
+    // Missed — beam hits brain tissue
+    const w=WAVES[selectedWave];
+    waveBeam={waveIdx:selectedWave, t:0, maxT:1.4, col:w.col, muB:w.muB, muT:w.muT,
+              correct:false, miss:true, x1:0, y1:sy, x2:sx, y2:sy, photonT:0};
+    addScore(-15); health=Math.max(0,health-4);
+    heatRings.push({x:sx*.6,y:sy,t:0,maxR:60,alpha:0.45});
+    neurons.forEach(n=>{ if(Math.random()>.78) n.damage=Math.min(n.damage+.08,.4); });
+    triggerShake(5,0.25);
+    spawnCallout(sx,sy-40,'MISSED — beam hit brain tissue','#ef4444',2,'world');
+    setNarr(`Missed the vessel. The ${w.nm}nm beam hit cortical tissue. Keep the laser steady and aim at the moving vessel.`);
+    setTimeout(()=>{ waveBeam=null; renderWaveCtrl(); }, 1400);
+    renderWaveCtrl();
+  }
+}
+
+window.fireWavelength=(i, tx, ty)=>{
+  if(waveBeam) return; // already firing
+  const w=WAVES[i];
+  const vx=tx!==undefined?tx:waveTestVessel.x;
+  const vy=ty!==undefined?ty:waveTestVessel.y;
+  waveBeam={waveIdx:i, t:0, maxT:2.2, col:w.col, muB:w.muB, muT:w.muT, correct:w.correct,
+            x1:0, y1:vy, x2:vx, y2:vy, photonT:0};
+  selectedWave=null;
+  unhlAll(); setAction(''); clearCanvasAction();
+  renderWaveCtrl();
+  // Result fires at end of animation
+  setTimeout(()=>{
+    waveFired[i]={correct:w.correct};
+    waveBeam=null;
+    clearTimeout(window._waveHintTimer);
+    stopVoice(); // clear any queued audio before playing result cue
+    if(w.correct){
+      waveCorrect=true; timerRunning=false; addScore(100);
+      spawnBurst(vx,vy,'seal');
+      spawnScorePop(vx,vy,100);
+      spawnCallout(vx,vy-55,'μ_blood='+w.muB+' — all energy IN vessel','#4477ff',3,'world');
+      spawnCallout(vx,vy-80,'Beer-Lambert: depth = 50μm in blood!','#22c55e',3.5,'world');
+      setNarr(`At 454nm, μ_blood is ${w.muB} — enormous. Beer-Lambert: I(z)=I₀e^(-${w.muB}z). Intensity collapses to zero within 50 micrometres of entering haemoglobin. All energy stays inside the vessel. μ_brain is only ${w.muT} — the beam passed through neurons without depositing any heat.`);
+      playCue('waveCorrect');
+      setTimeout(()=> startMicroZoom(vx, vy), 1500);
+    } else {
+      addScore(-20); health=Math.max(0,health-6);
+      spawnBurst(vx,vy,'damage');
+      spawnCallout(vx,vy-55,'μ_brain='+w.muT+' — BEAM ABSORBED BY BRAIN','#ef4444',3,'world');
+      spawnCallout(vx,vy-80,'Neurons absorb energy before vessel reached','#fbbf24',3,'world');
+      heatRings.push({x:vx*.5,y:vy,t:0,maxR:180,alpha:.6});
+      neurons.forEach(n=>{ if(Math.random()>.65) n.damage=Math.min(n.damage+.15,.6); });
+      triggerShake(7,0.35); triggerAlarm(true); setTimeout(()=>triggerAlarm(false),1200);
+      setNarr(`At ${w.nm}nm, μ_brain is ${w.muT} — the beam deposits energy into cortical tissue before it even reaches the vessel. Brain absorbs the laser. The haemorrhage continues. Try the other wavelengths.`);
+      playCue('waveWrong');
+      setTimeout(()=> startMicroZoom(vx, vy, 'wrong', {muB:w.muB, muT:w.muT, nm:w.nm}), 1200);
+    }
+    renderWaveCtrl();
+    if(waveCorrect){
+      setTimeout(()=>{
+        hl('.tool-btn.success');
+        setAction('Correct wavelength found — click ENTER OPERATING ROOM');
+        setCanvasAction('Click ENTER OPERATING ROOM in the sidebar →');
+      },200);
+    } else {
+      setTimeout(()=>{
+        setAction('Fire the remaining wavelengths to find the correct one');
+        setCanvasAction('Try the other wavelengths — click FIRE →');
+      },400);
+    }
+  }, 2200);
+};
+
+window.proceedSurgery=()=>{ stopVoice(); photons=[]; waveBeam=null; microZoom=null; unhlAll(); setAction(''); clearCanvasAction(); startSurgery(); };
+
+// ── MICRO-ZOOM SEQUENCE ────────────────────────────────────────────────────
+// mode: 'correct' | 'wrong' (wavelength) | 'seal' | 'damage' (surgery)
+function startMicroZoom(originX, originY, mode='correct', opts={}) {
+  const muB=opts.muB||14.0, muT=opts.muT||0.08;
+
+  // Audio duration per mode: result cue + mz cues (all play sequentially via queue)
+  // correct: waveCorrect(43) + mzCorrect1-4(21+14+22+25=82) = 125s
+  // wrong:   waveWrong(25)   + mzWrong1-3(14+13+20=47)      = 72s
+  // seal:    vesselSealed(23) + mzSeal1-3(9+16+23=48)        = 71s
+  // damage:  vesselDamaged(21)+ mzDamage1-2(22+10=32)        = 53s
+  // Note: result cue starts ~1-2s before zoom, so subtract ~1s from each
+  const audioDur = {correct:124, wrong:70, seal:70, damage:52}[mode] || 50;
+  // totalT = 3s zoom-in + audio + 2s zoom-out, minimum 20s
+  const totalT = Math.max(20, 3 + audioDur + 2);
+
+  const cueLists = {
+    correct: ['mzCorrect1','mzCorrect2','mzCorrect3','mzCorrect4'],
+    wrong:   ['mzWrong1','mzWrong2','mzWrong3'],
+    seal:    ['mzSeal1','mzSeal2','mzSeal3'],
+    damage:  ['mzDamage1','mzDamage2'],
+  };
+
+  microZoom={
+    t:0, totalT,
+    originX, originY, mode,
+    muB, muT,
+    nmLabel:opts.nm||454,
+    vesselLabel:opts.label||'',
+    brainMols: _mzMakeMols(16,'neuron','brain'),
+    vesselMols: _mzMakeMols(mode==='wrong'?10:20, mode==='wrong'?'hb':'mixed','vessel'),
+    zPhotons:[], pSpawnT:0,
+    dismissed:false,
+    pendingCues: cueLists[mode] || [],  // fired once zoom-in phase ends
+    cuesQueued: false,
+  };
+}
+
+function _mzMakeMols(n, type, zone) {
+  // Returns array of {px, py, r, heat, coag, damage, type, zone}
+  // px/py are fractions of half-canvas: px in [-1,1], py in [-1,1]
+  // Actual pixel = cx + px * W*0.3  (brain zone: px<0, vessel zone: px>0)
+  const mols=[];
+  for(let i=0;i<n;i++){
+    const side = zone==='brain' ? -1 : 1;
+    mols.push({
+      px: side*(0.08 + Math.random()*0.75),
+      py: (Math.random()-.5)*0.85,
+      r: type==='neuron' ? 10+Math.random()*6 : 6+Math.random()*5,
+      heat:0, coag:0, damage:0,
+      type: type==='mixed' ? (Math.random()>.4?'hb':'rbc') : type,
+      zone,
+    });
+  }
+  return mols;
+}
+
+function drawMicroZoom(dt) {
+  const mz=microZoom;
+  if(!mz) return;
+  mz.t+=dt;
+  const W=gc.width, H=gc.height;
+  const cx=W*.5, cy=H*.5;
+
+  const ZOOM_DUR=3.0, ZOUT_START=mz.totalT-2.0, ZOUT_DUR=2.0;
+
+  // Queue narration only once zoom-in phase finishes — so audio never plays over the intro animation.
+  // Do NOT stopVoice here: let the result cue (waveCorrect/waveWrong/vesselSealed/vesselDamaged)
+  // finish playing first, then the mz cues follow in sequence via the queue.
+  if(!mz.cuesQueued && mz.t >= ZOOM_DUR) {
+    mz.cuesQueued = true;
+    mz.pendingCues.forEach(c => queueCue(c));
+  }
+
+  // Dismiss zoom only when minimum time has passed AND all audio is done
+  const audioFinished = !_voicePlaying && _voiceQueue.length===0;
+  if(mz.t>=mz.totalT && audioFinished){ microZoom=null; if(mz.mode==='correct'||mz.mode==='wrong') renderWaveCtrl(); else renderSurgCtrl(); return; }
+  const isZoomIn=mz.t<ZOOM_DUR, isZoomOut=mz.t>ZOUT_START;
+  const zoomProg= isZoomIn?mz.t/ZOOM_DUR : isZoomOut?(1-(mz.t-ZOUT_START)/ZOUT_DUR) : 1;
+  const ez=zoomProg<0.5?4*zoomProg**3:1-(-2*zoomProg+2)**3/2;
+
+  // Background overlay
+  ctx.save();
+  ctx.globalAlpha=isZoomIn?ez*0.96:isZoomOut?Math.max(0,ez)*0.96:0.96;
+  ctx.fillStyle='rgba(3,5,14,1)';
+  ctx.fillRect(0,0,W,H);
+  ctx.globalAlpha=1;
+
+  // ZOOM-IN PHASE
+  if(isZoomIn){
+    const accentCol=mz.mode==='wrong'?'#ff6644':'#5588ff';
+    const steps=[
+      {p:0.08, label:'BRAIN SURFACE',      sub:'brain cells — we pass straight through'},
+      {p:0.28, label:'VESSEL WALL',         sub:'thin membrane separating brain from blood'},
+      {p:0.52, label:'INSIDE THE BLOOD',    sub:'red blood cells — each one carries oxygen'},
+      {p:0.76, label:'HAEMOGLOBIN MOLECULE',sub:'the protein inside red blood cells — our target'},
+    ];
+    for(let ri=0;ri<5;ri++){
+      const rp=Math.max(0,ez-ri*0.2);
+      if(rp<=0) continue;
+      ctx.save(); ctx.globalAlpha=rp*(1-ez*0.5)*0.35;
+      ctx.strokeStyle=accentCol; ctx.lineWidth=1.5; ctx.setLineDash([4,6]);
+      ctx.beginPath(); ctx.arc(cx,cy,(1-ez)*(H*.28)+ri*22,0,Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+    ctx.save(); ctx.globalAlpha=ez*0.6;
+    ctx.strokeStyle=accentCol; ctx.lineWidth=1;
+    const rr=(1-ez)*75+12;
+    ctx.beginPath(); ctx.arc(cx,cy,rr,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx-rr-8,cy); ctx.lineTo(cx+rr+8,cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx,cy-rr-8); ctx.lineTo(cx,cy+rr+8); ctx.stroke();
+    ctx.restore();
+    steps.forEach((s,si)=>{
+      if(ez<s.p-0.02) return;
+      const fa=Math.min((ez-s.p+0.02)/0.1,1);
+      const lx=cx+(si%2===0?-W*.32:W*.08), ly=cy-H*.22+si*H*.115;
+      ctx.save(); ctx.globalAlpha=fa*0.92;
+      roundRect(ctx,lx,ly-14,200,30,4);
+      ctx.fillStyle='rgba(4,10,22,0.9)'; ctx.fill();
+      ctx.strokeStyle=accentCol; ctx.lineWidth=1; ctx.stroke();
+      ctx.fillStyle=accentCol; ctx.font='bold 10px Courier New'; ctx.textAlign='left';
+      ctx.fillText(s.label,lx+7,ly+1);
+      ctx.fillStyle='#3a6a7a'; ctx.font='8px Courier New';
+      ctx.fillText(s.sub,lx+7,ly+13);
+      ctx.restore();
+    });
+    ctx.save(); ctx.globalAlpha=ez*0.7;
+    ctx.fillStyle='#2a4a5a'; ctx.font='9px Courier New'; ctx.textAlign='center';
+    ctx.fillText('MAGNIFICATION: '+Math.round(1+ez*49999).toLocaleString()+'x', cx, cy+H*.38);
+    ctx.restore();
+    ctx.restore(); return;
+  }
+
+  // MAIN SPLIT-SCREEN VIEW
+  const mainT=mz.t-ZOOM_DUR;
+  const mainAlpha=isZoomOut?Math.max(0,ez):1;
+  ctx.save(); ctx.globalAlpha=mainAlpha;
+
+  const laneW=W*.36, laneH=H*.58, laneY=cy-laneH*.5-H*.04;
+  const brainX=cx-W*.02-laneW, vesselX=cx+W*.02;
+
+  // Lane backgrounds
+  roundRect(ctx,brainX,laneY,laneW,laneH,6);
+  ctx.fillStyle=mz.mode==='wrong'?'rgba(70,10,6,0.38)':'rgba(6,38,14,0.38)'; ctx.fill();
+  ctx.strokeStyle=mz.mode==='wrong'?'rgba(200,50,30,0.55)':'rgba(30,120,60,0.45)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  roundRect(ctx,vesselX,laneY,laneW,laneH,6);
+  ctx.fillStyle=mz.mode==='wrong'?'rgba(6,28,6,0.25)':'rgba(70,6,6,0.38)'; ctx.fill();
+  ctx.strokeStyle=mz.mode==='wrong'?'rgba(30,100,50,0.3)':'rgba(200,40,40,0.55)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // Lane headers
+  const fa=Math.min(mainT*1.2,1);
+  ctx.save(); ctx.globalAlpha=fa;
+  ctx.textAlign='center';
+  if(mz.mode==='wrong'){
+    ctx.fillStyle='#ff6644'; ctx.font='bold 11px Courier New';
+    ctx.fillText('BRAIN TISSUE  ✗  ABSORBS THE BEAM',brainX+laneW*.5,laneY-10);
+    ctx.fillStyle='#cc4422'; ctx.font='8px Courier New';
+    ctx.fillText('wrong colour — brain cells soak up the laser energy',brainX+laneW*.5,laneY+5);
+    ctx.fillStyle='#558855'; ctx.font='bold 11px Courier New';
+    ctx.fillText('BLOOD VESSEL  ✗  NEVER REACHED',vesselX+laneW*.5,laneY-10);
+    ctx.fillStyle='#336633'; ctx.font='8px Courier New';
+    ctx.fillText('haemoglobin untouched — bleeding continues',vesselX+laneW*.5,laneY+5);
+  } else {
+    ctx.fillStyle='#44cc77'; ctx.font='bold 11px Courier New';
+    ctx.fillText('BRAIN TISSUE  ✓  LASER PASSES THROUGH',brainX+laneW*.5,laneY-10);
+    ctx.fillStyle='#33aa55'; ctx.font='8px Courier New';
+    ctx.fillText('brain cells are invisible to this colour of light',brainX+laneW*.5,laneY+5);
+    ctx.fillStyle='#ff6644'; ctx.font='bold 11px Courier New';
+    ctx.fillText('BLOOD VESSEL  ✓  ABSORBS ALL ENERGY',vesselX+laneW*.5,laneY-10);
+    ctx.fillStyle='#cc4422'; ctx.font='8px Courier New';
+    ctx.fillText('haemoglobin grabs every photon — heat stays inside the blood',vesselX+laneW*.5,laneY+5);
+  }
+  ctx.restore();
+
+  // Molecules
+  const allMols=[...(mz.brainMols||[]),...(mz.vesselMols||[])];
+  allMols.forEach((m,mi)=>{
+    const isV=m.zone==='vessel';
+    const lx=isV?vesselX:brainX;
+    const mx=lx+laneW*.5+m.px*laneW*.44;
+    const my=laneY+laneH*.5+m.py*laneH*.42;
+    // State update
+    if(mz.mode==='wrong'&&m.zone==='brain') m.damage=Math.min(1,Math.max(0,(mainT-1.5-mi*0.1)*0.3));
+    if((mz.mode==='correct'||mz.mode==='seal')&&m.zone==='vessel'&&m.type==='hb') m.heat=Math.min(1,Math.max(0,(mainT-2.0-mi*0.08)*0.35));
+    if((mz.mode==='correct'||mz.mode==='seal')&&mainT>7&&m.zone==='vessel') m.coag=Math.min(1,Math.max(0,(mainT-7-mi*0.07)*0.4));
+    ctx.save(); ctx.translate(mx,my);
+    if(m.type==='neuron'){
+      if(m.damage>0.05){ ctx.beginPath(); ctx.arc(0,0,m.r*2.2,0,Math.PI*2); ctx.fillStyle='rgba(255,60,0,'+(m.damage*0.28)+')'; ctx.fill(); }
+      ctx.beginPath(); ctx.arc(0,0,m.r,0,Math.PI*2);
+      ctx.fillStyle=m.damage>0?'rgba('+(80+Math.floor(m.damage*160))+','+(50-Math.floor(m.damage*40))+',50,0.88)':'rgba(60,90,70,0.85)';
+      ctx.fill(); ctx.strokeStyle=m.damage>0?'rgba(255,80,30,0.6)':'rgba(80,140,100,0.5)'; ctx.lineWidth=1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,m.r*.4,0,Math.PI*2); ctx.fillStyle=m.damage>0?'rgba(200,40,20,0.7)':'rgba(50,80,60,0.8)'; ctx.fill();
+      for(let d=0;d<3;d++){ const a=d*2.09+mi*0.3; ctx.strokeStyle=m.damage>0?'rgba(220,60,30,0.5)':'rgba(70,130,90,0.4)'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(Math.cos(a)*m.r,Math.sin(a)*m.r); ctx.lineTo(Math.cos(a)*m.r*2.0,Math.sin(a)*m.r*2.0); ctx.stroke(); }
+      if(mi<2){ ctx.fillStyle=m.damage>0?'#ff8866':'#66aa88'; ctx.font='7px Courier New'; ctx.textAlign='left'; ctx.fillText(mi===0?(m.damage>0.1?'NEURON — HEATING UP!':'neuron — laser passes through'):'absorbing heat!',m.r*2.2+2,3); }
+    } else if(m.type==='rbc'){
+      ctx.beginPath(); ctx.ellipse(0,0,m.r*1.4,m.r*0.8,0,0,Math.PI*2);
+      ctx.fillStyle=m.coag>0.4?'rgba(90,30,20,0.85)':'rgba(190,35,35,0.82)'; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0,0,m.r*.65,m.r*.3,0,0,Math.PI*2); ctx.fillStyle='rgba(120,15,15,0.7)'; ctx.fill();
+      ctx.strokeStyle='rgba(255,80,80,0.3)'; ctx.lineWidth=0.8; ctx.stroke();
+    } else {
+      if(m.heat>0.08){ ctx.beginPath(); ctx.arc(0,0,m.r*2.1,0,Math.PI*2); ctx.fillStyle='rgba(255,120,0,'+(m.heat*0.3)+')'; ctx.fill(); }
+      ctx.beginPath(); ctx.arc(0,0,m.r,0,Math.PI*2);
+      const hR=m.coag>0.2?Math.floor(90+m.coag*80):Math.floor(150+m.heat*100);
+      const hG=m.coag>0.2?25:Math.floor(38+m.heat*10);
+      ctx.fillStyle='rgba('+hR+','+hG+',28,0.9)'; ctx.fill();
+      const porPhase=mz.mode==='correct'||mz.mode==='seal';
+      ctx.beginPath(); ctx.arc(0,0,m.r*.58,0,Math.PI*2);
+      ctx.strokeStyle=m.heat>0?'rgba(255,'+(160+Math.floor(m.heat*60))+',20,0.95)':porPhase?'rgba(80,180,255,0.75)':'rgba(180,120,30,0.65)';
+      ctx.lineWidth=2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,2.5,0,Math.PI*2);
+      ctx.fillStyle=m.heat>0.15?'#ffcc00':porPhase?'#88ccff':'#cc6600'; ctx.fill();
+      if(m.coag>0.1){ for(let j=0;j<4;j++){ const a=j*1.57+mz.t*0.2; ctx.strokeStyle='rgba(200,90,0,'+(m.coag*0.75)+')'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(Math.cos(a)*m.r*.82,Math.sin(a)*m.r*.82); ctx.lineTo(Math.cos(a+Math.PI)*m.r*.82,Math.sin(a+Math.PI)*m.r*.82); ctx.stroke(); } }
+      if(mi<2&&m.zone==='vessel'){ ctx.fillStyle=m.heat>0.1?'#ffaa44':porPhase?'#88bbff':'#aa7755'; ctx.font='7px Courier New'; ctx.textAlign='left'; ctx.fillText(mi===0?(m.heat>0.1?'haemoglobin — ABSORBING!':'haemoglobin molecule'):m.heat>0.1?'heating up!':'absorbs 454nm light',m.r+3,3); }
+    }
+    ctx.restore();
+  });
+
+  // Photon beam
+  if(mainT>0.4){
+    mz.pSpawnT+=dt;
+    if(mz.pSpawnT>0.04){ mz.pSpawnT=0;
+      const fy=laneY+laneH*.12+Math.random()*laneH*.76;
+      mz.zPhotons.push({x:brainX-22,y:fy,vx:W*.38,absorbed:false,intensity:1,absX:0,absT:0});
+    }
+    mz.zPhotons=mz.zPhotons.filter(p=>{
+      if(!p.absorbed) p.x+=p.vx*dt;
+      if(mz.mode==='wrong'){
+        if(p.x>brainX&&p.x<brainX+laneW){
+          const df=(p.x-brainX)/laneW;
+          p.intensity=Math.exp(-mz.muT*df*0.05*20);
+          for(const m of (mz.brainMols||[])){
+            const mpx=brainX+laneW*.5+m.px*laneW*.44, mpy=laneY+laneH*.5+m.py*laneH*.42;
+            if(Math.hypot(p.x-mpx,p.y-mpy)<m.r*1.3&&!p.absorbed&&Math.random()<0.04){
+              p.absorbed=true; p.absX=p.x; p.absT=mz.t; m.heat=Math.min(1,m.heat+0.4); m.damage=Math.min(1,m.damage+0.3); break;
+            }
+          }
+          if(p.intensity<0.06&&!p.absorbed){ p.absorbed=true; p.absX=p.x+(Math.random()-.5)*15; p.absT=mz.t; }
+        }
+        if(p.x>vesselX+laneW) return false;
+      } else {
+        if(p.x>vesselX&&p.x<vesselX+laneW){
+          for(const m of (mz.vesselMols||[])){
+            if(m.type!=='hb') continue;
+            const mpx=vesselX+laneW*.5+m.px*laneW*.44, mpy=laneY+laneH*.5+m.py*laneH*.42;
+            if(Math.hypot(p.x-mpx,p.y-mpy)<m.r*1.5&&!p.absorbed&&Math.random()<0.05){
+              p.absorbed=true; p.absX=p.x; p.absT=mz.t; m.heat=Math.min(1,m.heat+0.55); break;
+            }
+          }
+        }
+        if(p.x>vesselX+laneW) return false;
+      }
+      if(p.absorbed){
+        const fade=Math.max(0,1-(mz.t-p.absT)*2.0);
+        if(fade<=0) return false;
+        ctx.save(); ctx.globalAlpha=fade;
+        ctx.beginPath(); ctx.arc(p.absX,p.y,7+fade*13,0,Math.PI*2);
+        ctx.fillStyle=mz.mode==='wrong'?'rgba(255,80,20,'+(fade*0.72)+')':'rgba(255,200,60,'+(fade*0.72)+')'; ctx.fill();
+        ctx.strokeStyle=mz.mode==='wrong'?'rgba(255,60,0,0.35)':'rgba(255,160,30,0.35)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(p.absX,p.y,(7+fade*13)*1.7,0,Math.PI*2); ctx.stroke();
+        ctx.restore(); return true;
+      }
+      const alpha=mz.mode==='wrong'?Math.max(0.1,p.intensity)*0.88:0.84;
+      const dotR=mz.mode==='wrong'?Math.max(1.0,2.5*p.intensity):2.5;
+      const pcol=mz.mode==='wrong'?(mz.nmLabel===700?'#ff4444':'#ff9933'):'#77aaff';
+      ctx.save(); ctx.globalAlpha=alpha;
+      ctx.beginPath(); ctx.arc(p.x,p.y,dotR,0,Math.PI*2); ctx.fillStyle=pcol; ctx.fill();
+      if(dotR>1.5){ ctx.shadowColor=pcol; ctx.shadowBlur=7; ctx.fill(); }
+      ctx.restore(); return true;
+    });
+  }
+
+  // Beer-Lambert comparison bars
+  if(mainT>2.5){
+    const barA=Math.min((mainT-2.5)*0.5,1);
+    ctx.save(); ctx.globalAlpha=barA;
+    const bx=cx-55, by=laneY+laneH+22, bw=48, bh=36, gap=118;
+    roundRect(ctx,bx-8,by-16,bw+16,bh+32,3); ctx.fillStyle='rgba(2,8,18,0.9)'; ctx.fill();
+    ctx.fillStyle='#3a5a4a'; ctx.font='bold 7px Courier New'; ctx.textAlign='center';
+    ctx.fillText('IN BRAIN TISSUE',bx+bw*.5,by-6);
+    const bIz=Math.exp(-mz.muT*0.05), bBh=bIz*bh;
+    ctx.fillStyle='rgba(15,35,15,0.7)'; ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle=mz.mode==='wrong'?'#ff5544':'#44cc77'; ctx.fillRect(bx,by+bh-bBh,bw,bBh);
+    ctx.fillStyle=mz.mode==='wrong'?'#ff8866':'#44cc77'; ctx.font='bold 9px Courier New';
+    ctx.fillText(Math.round(bIz*100)+'%',bx+bw*.5,by+bh+12);
+    ctx.fillStyle='#3a5a4a'; ctx.font='7px Courier New'; ctx.fillText('survives',bx+bw*.5,by+bh+22);
+    roundRect(ctx,bx+gap-8,by-16,bw+16,bh+32,3); ctx.fillStyle='rgba(2,8,18,0.9)'; ctx.fill();
+    ctx.fillStyle='#5a3a3a'; ctx.font='bold 7px Courier New';
+    ctx.fillText('IN BLOOD VESSEL',bx+gap+bw*.5,by-6);
+    const vIz=Math.exp(-mz.muB*0.05), vBh=vIz*bh;
+    ctx.fillStyle='rgba(35,10,10,0.7)'; ctx.fillRect(bx+gap,by,bw,bh);
+    ctx.fillStyle=mz.mode==='wrong'?'#44cc66':'#ff5544'; ctx.fillRect(bx+gap,by+bh-vBh,bw,vBh);
+    ctx.fillStyle=mz.mode==='wrong'?'#44cc66':'#ff8866'; ctx.font='bold 9px Courier New';
+    ctx.fillText((vIz*100).toFixed(1)+'%',bx+gap+bw*.5,by+bh+12);
+    ctx.fillStyle='#5a3a3a'; ctx.font='7px Courier New'; ctx.fillText('survives',bx+gap+bw*.5,by+bh+22);
+    ctx.fillStyle='#556688'; ctx.font='bold 8px Courier New'; ctx.textAlign='center';
+    ctx.fillText('How much laser energy survives after travelling 50 microns into each tissue',cx,by-20);
+    ctx.restore();
+  }
+
+  // Verdict panel
+  if(mainT>4.5){
+    const va=Math.min((mainT-4.5)*0.5,1);
+    ctx.save(); ctx.globalAlpha=va;
+    const vc=mz.mode==='wrong'?'#ff5533':'#22dd66';
+    const vt=mz.mode==='wrong'?
+      '✗  '+mz.nmLabel+'nm FAILS: brain tissue absorbs this colour — beam never reaches the bleeding vessel':
+      '✓  454nm: brain tissue is transparent to this colour | blood absorbs nearly 100% within the first 50 microns';
+    roundRect(ctx,cx-W*.36,cy+H*.32,W*.72,22,4);
+    ctx.fillStyle='rgba(2,6,16,0.92)'; ctx.fill();
+    ctx.strokeStyle=vc; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle=vc; ctx.font='bold 9px Courier New'; ctx.textAlign='center';
+    ctx.fillText(vt,cx,cy+H*.32+14);
+    ctx.restore();
+  }
+
+  ctx.restore(); // mainAlpha
+
+  // Title + Beer-Lambert banner
+  ctx.save();
+  const titleA = Math.min(mz.t*1.5,1)*0.9;
+  ctx.globalAlpha = titleA;
+  const tc={correct:'#5588ff',wrong:'#ff5533',seal:'#22cc66',damage:'#ff8844'}[mz.mode]||'#5588ff';
+  const ttMap={correct:'MICRO-ZOOM: 454nm — SELECTIVE PHOTOTHERMOLYSIS',seal:'MICRO-ZOOM: VESSEL SEALING — TRT RESPECTED',damage:'MICRO-ZOOM: TRT EXCEEDED — THERMAL SPREAD'};
+  const tt=mz.mode==='wrong'?'MICRO-ZOOM: '+mz.nmLabel+'nm — WHY THIS FAILS':ttMap[mz.mode]||'MICRO-ZOOM';
+  ctx.fillStyle=tc; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+  ctx.fillText(tt,cx,16);
+
+  // Beer-Lambert formula banner — big, colour-coded, with plain-English labels
+  const bly = 48; // top of banner
+  const bw2 = W*0.72, bh2 = 74;
+  const blx = cx - bw2/2;
+  roundRect(ctx, blx, bly, bw2, bh2, 6);
+  ctx.fillStyle='rgba(2,6,20,0.92)'; ctx.fill();
+  ctx.strokeStyle=tc; ctx.lineWidth=1.5; ctx.stroke();
+
+  // Big formula line: I(z) = I₀ × e^(−μz)
+  ctx.textAlign='center';
+  ctx.font='bold 26px Courier New';
+  // Draw each term in a different colour so it's readable
+  const fTerms=[
+    {t:'I(z)',   col:'#ffffff', tip:'laser intensity at depth z'},
+    {t:' = ',    col:'#555577', tip:null},
+    {t:'I₀',     col:'#88aaff', tip:'starting intensity (100%)'},
+    {t:' × ',    col:'#555577', tip:null},
+    {t:'e',      col:'#ffdd44', tip:'mathematical constant 2.718'},
+    {t:'^(−',    col:'#aaaaaa', tip:null},
+    {t:'μ',      col:mz.mode==='wrong'?'#ff6644':'#ff4444', tip:'absorption coefficient'},
+    {t:'z',      col:'#44ffaa', tip:'depth into tissue'},
+    {t:')',       col:'#aaaaaa', tip:null},
+  ];
+  // Measure total width to centre it
+  ctx.font='bold 26px Courier New';
+  let totalFW=0;
+  fTerms.forEach(ft=>{ totalFW+=ctx.measureText(ft.t).width; });
+  let fx=cx-totalFW/2;
+  fTerms.forEach(ft=>{
+    ctx.fillStyle=ft.col;
+    ctx.textAlign='left';
+    ctx.fillText(ft.t, fx, bly+34);
+    fx+=ctx.measureText(ft.t).width;
+  });
+
+  // Legend line below formula
+  ctx.font='9px Courier New'; ctx.textAlign='center';
+  const legend=[
+    {col:'#88aaff', label:'I₀ = full beam power'},
+    {col:'#ff4444', label:'μ = how strongly tissue absorbs this wavelength'},
+    {col:'#44ffaa', label:'z = depth (mm)'},
+    {col:'#ffffff', label:'I(z) = power remaining'},
+  ];
+  let lx = blx+16;
+  legend.forEach(l=>{
+    ctx.fillStyle=l.col;
+    ctx.textAlign='left';
+    ctx.fillText(l.label, lx, bly+54);
+    lx += ctx.measureText(l.label).width + 18;
+  });
+
+  // Plain-English bottom line
+  ctx.textAlign='center'; ctx.fillStyle='#6688aa'; ctx.font='italic 9px Courier New';
+  const blurb = mz.mode==='wrong'
+    ? `At ${mz.nmLabel}nm: μ is HIGH in brain tissue — beam energy dies before reaching the vessel`
+    : '454nm: μ ≈ 0 in brain (passes through) — μ = 14 in blood (stops in 50 microns)';
+  ctx.fillText(blurb, cx, bly+68);
+
+  ctx.restore();
+
+  // Skip button
+  if(mz.t>1.5){
+    ctx.save(); ctx.globalAlpha=0.5;
+    roundRect(ctx,W-148,H-28,138,18,3); ctx.fillStyle='#080f1a'; ctx.fill();
+    ctx.strokeStyle='#1a3a4a'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='#3a6a7a'; ctx.font='8px Courier New'; ctx.textAlign='center';
+    ctx.fillText('CLICK ANYWHERE TO SKIP',W-148+69,H-15);
+    ctx.restore();
+  }
+}
+
+function microZoomClick(){
+  if(!microZoom||microZoom.t<0.5) return false;
+  const mode=microZoom.mode;
+  microZoom=null;
+  stopVoice();
+  if(mode==='correct'||mode==='wrong') renderWaveCtrl();
+  else renderSurgCtrl();
+  return true;
+}
+
+
+function drawWave(dt) {
+  waveAnimT+=dt;
+  const W=gc.width, H=gc.height;
+
+  // Update vessel position (Lissajous patrol)
+  if(waveTestVessel && waveTestVessel.baseX!==undefined && !waveBeam && !waveCorrect) {
+    waveTestVessel.x = waveTestVessel.baseX + Math.cos(waveTestVessel.movePhase + tick*0.016*waveTestVessel.moveSpeed) * waveTestVessel.moveAmp;
+    waveTestVessel.y = waveTestVessel.baseY + Math.sin(waveTestVessel.movePhase + tick*0.016*waveTestVessel.moveSpeed*0.6) * waveTestVessel.moveAmp*0.5;
+  }
+
+  const vx=waveTestVessel?waveTestVessel.x:W*.5;
+  const vy=waveTestVessel?waveTestVessel.y:H*.48;
+
+  // Zone overlays — brain tissue left, vessel zone centre
+  const vr=50;
+  ctx.fillStyle='rgba(8,18,32,.35)'; ctx.fillRect(0,0,vx-vr,H);
+  ctx.fillStyle='rgba(30,4,4,.3)'; ctx.fillRect(vx-vr,0,vr*2,H);
+  ctx.setLineDash([4,6]); ctx.strokeStyle='rgba(40,80,60,.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(vx-vr,0); ctx.lineTo(vx-vr,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(vx+vr,0); ctx.lineTo(vx+vr,H); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.textAlign='center'; ctx.font='bold 10px Courier New';
+  ctx.fillStyle='rgba(60,130,90,.6)'; ctx.fillText('CORTEX (brain tissue)',W*.28,28);
+  ctx.fillStyle='rgba(200,60,60,.6)'; ctx.fillText('BLOOD VESSEL',vx,28);
+  ctx.textAlign='left';
+
+  // Draw the test vessel
+  if(waveTestVessel) drawVessel(waveTestVessel, tick);
+
+  // ── LIVE BEAM PREVIEW when a wavelength is loaded but not yet fired ──────
+  if(selectedWave!==null && !waveBeam && !waveCorrect && !microZoom && waveTestVessel) {
+    const pw=WAVES[selectedWave];
+    const v=waveTestVessel;
+    const vrad=v.dmm*90+12;
+    const beamY=v.y;  // beam travels at vessel height
+    const numRays=5;  // stacked parallel rays for visual weight
+
+    for(let ri=0;ri<numRays;ri++){
+      const ry=beamY+(ri-Math.floor(numRays/2))*5;
+      // Draw beam in segments: left edge → vessel edge (brain zone) → vessel far edge
+      // Brain zone: x 0 → vx-vrad
+      // Vessel zone: x vx-vrad → vx+vrad
+      const brainLen=v.x-vrad;
+      const vesselLen=vrad*2;
+      const STEPS=80;
+
+      for(let si=0;si<STEPS;si++){
+        const t=si/STEPS;
+        let sx, intensity;
+        if(t<0.65){
+          // Brain tissue segment
+          sx = (t/0.65)*brainLen;
+          const z=(sx/brainLen)*0.3; // 0–0.3mm across brain zone
+          intensity=Math.exp(-pw.muT*z);
+        } else {
+          // Vessel segment
+          const vt=(t-0.65)/0.35;
+          sx=brainLen + vt*vesselLen;
+          const z0=Math.exp(-pw.muT*0.3); // intensity entering vessel
+          const zv=vt*0.1; // 0–0.1mm into vessel
+          intensity=z0*Math.exp(-pw.muB*zv);
+        }
+        if(intensity<0.02) break;
+        const dotR=ri===2?2.2:1.4; // centre ray slightly thicker
+        ctx.save();
+        ctx.globalAlpha=Math.min(intensity*0.85, 0.85);
+        ctx.beginPath(); ctx.arc(sx,ry,dotR,0,Math.PI*2);
+        ctx.fillStyle=pw.col;
+        ctx.shadowColor=pw.col; ctx.shadowBlur=4;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Label at the vessel: "ABSORBED HERE" or "PASSES THROUGH"
+    const enterIntensity=Math.exp(-pw.muT*0.3);
+    const exitIntensity=enterIntensity*Math.exp(-pw.muB*0.1);
+    ctx.save();
+    ctx.textAlign='center';
+    if(pw.correct){
+      // Fading label: beam stops inside vessel
+      ctx.fillStyle='#22c55e'; ctx.font='bold 10px Courier New';
+      ctx.fillText('✓ STOPS IN VESSEL',v.x,v.y-vrad-22);
+      ctx.fillStyle='rgba(34,197,94,0.5)'; ctx.font='9px Courier New';
+      ctx.fillText(`${Math.round(exitIntensity*100)}% exits — nearly all absorbed`,v.x,v.y-vrad-8);
+    } else {
+      // Beam survives the vessel — brain got hit first
+      const brainExit=Math.exp(-pw.muT*0.3);
+      ctx.fillStyle='#ef4444'; ctx.font='bold 10px Courier New';
+      ctx.fillText('✗ BRAIN ABSORBS FIRST',v.x,v.y-vrad-22);
+      ctx.fillStyle='rgba(239,68,68,0.5)'; ctx.font='9px Courier New';
+      ctx.fillText(`${Math.round(brainExit*100)}% reaches vessel — too much brain heating`,v.x,v.y-vrad-8);
+    }
+    // μ callouts left and right
+    ctx.fillStyle='rgba(150,180,220,0.6)'; ctx.font='8px Courier New';
+    ctx.textAlign='left';
+    ctx.fillText(`μ brain = ${pw.muT}`, 8, beamY-12);
+    ctx.fillStyle=pw.col;
+    ctx.fillText(`μ blood = ${pw.muB}`, v.x+vrad+8, beamY-12);
+    ctx.restore();
+  }
+
+  // Crosshair cursor when a wavelength is loaded
+  if(selectedWave!==null && !waveBeam && !waveCorrect && !microZoom) {
+    const w=WAVES[selectedWave];
+    const v=waveTestVessel;
+    const onTarget = v && Math.hypot(mouseX-v.x, mouseY-v.y) < v.dmm*90+22;
+    ctx.save();
+    ctx.strokeStyle = onTarget ? '#22c55e' : w.col;
+    ctx.lineWidth=1.5;
+    const cr=20, gap=6;
+    ctx.beginPath(); ctx.arc(mouseX,mouseY,cr,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX-cr-gap,mouseY); ctx.lineTo(mouseX+cr+gap,mouseY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouseX,mouseY-cr-gap); ctx.lineTo(mouseX,mouseY+cr+gap); ctx.stroke();
+    if(onTarget) { ctx.fillStyle='rgba(34,197,94,0.2)'; ctx.beginPath(); ctx.arc(mouseX,mouseY,cr,0,Math.PI*2); ctx.fill(); }
+    ctx.fillStyle=w.col; ctx.font='bold 9px Courier New'; ctx.textAlign='center';
+    ctx.fillText(w.nm+'nm LOADED', mouseX, mouseY-cr-8);
+    ctx.restore();
+  }
+
+  // Active beam animation
+  if(waveBeam){
+    const wb=waveBeam;
+    wb.t+=dt; wb.photonT+=dt;
+    const progress=Math.min(wb.t/wb.maxT,1);
+    const beamEnd=wb.x1+(wb.x2-wb.x1)*Math.min(progress*1.6,1);
+
+    // Beam core
+    ctx.save();
+    ctx.shadowColor=wb.col; ctx.shadowBlur=18;
+    ctx.strokeStyle=wb.col; ctx.lineWidth=3;
+    ctx.globalAlpha=0.9;
+    ctx.beginPath(); ctx.moveTo(wb.x1,wb.y1); ctx.lineTo(beamEnd,wb.y2); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.restore();
+
+    // Photon particles along beam
+    for(let pi=0;pi<10;pi++){
+      const pt=((wb.photonT*5+pi*0.1)%1);
+      const px=wb.x1+(beamEnd-wb.x1)*pt;
+      const py=wb.y1+(wb.y2-wb.y1)*pt;
+      ctx.beginPath(); ctx.arc(px,py,2.5,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,255,255,${.9-pt*.6})`; ctx.fill();
+    }
+
+    // Brain tissue absorption effect — heat halos along beam path through cortex
+    if(!wb.correct && wb.t>0.3 && tick%3===0){
+      const hx=wb.x1+Math.random()*(vx-vr-wb.x1);
+      const hy=wb.y1+(Math.random()-.5)*20;
+      heatRings.push({x:hx,y:hy,t:0,maxR:35+wb.muT*8,alpha:0.4});
+    }
+
+    // Beer-Lambert live readout on canvas
+    if(wb.t>0.15){
+      const z=0.05; // 50 micrometres = 0.05mm
+      const Iblood=Math.exp(-wb.muB*z);
+      const Ibrain=Math.exp(-wb.muT*z);
+      ctx.save();
+      const bx2=vx+vr+20, by2=H*.35;
+      roundRect(ctx,bx2,by2,210,80,5);
+      ctx.fillStyle='rgba(2,8,16,.9)'; ctx.fill();
+      ctx.strokeStyle=wb.col; ctx.lineWidth=1.2; ctx.stroke();
+      ctx.font='bold 11px Courier New'; ctx.textAlign='left';
+      ctx.fillStyle=wb.col;
+      ctx.fillText(`λ = ${WAVES[wb.waveIdx].nm} nm`,bx2+8,by2+16);
+      ctx.fillStyle='#7de8b0'; ctx.font='9px Courier New';
+      ctx.fillText(`μ_blood = ${wb.muB}  →  I/I₀ in blood = ${Iblood.toFixed(3)}`,bx2+8,by2+32);
+      ctx.fillText(`μ_brain = ${wb.muT}  →  I/I₀ in brain = ${Ibrain.toFixed(3)}`,bx2+8,by2+46);
+      const verdict= wb.correct ? 'BEAM STOPS IN VESSEL ✓' : 'BEAM BURNS BRAIN ✗';
+      ctx.fillStyle= wb.correct ? '#22c55e' : '#ef4444';
+      ctx.font='bold 10px Courier New';
+      ctx.fillText(verdict,bx2+8,by2+64);
+      ctx.restore();
+    }
+
+    // Vessel absorption flash when beam arrives
+    if(progress>0.6){
+      const flash=wb.correct?0.5+0.5*Math.sin(wb.t*12):0.2;
+      const flashCol=wb.correct?`rgba(80,180,255,${flash*.4})`:`rgba(255,80,80,${flash*.3})`;
+      ctx.beginPath(); ctx.arc(vx,vy,vr+20,0,Math.PI*2);
+      ctx.fillStyle=flashCol; ctx.fill();
+    }
+  }
+
+  // Absorption bar chart — right side of canvas, always visible
+  const bx=W*.78, by=H*.15, bh=H*.28, bw=16, gap=50;
+  ctx.save();
+  roundRect(ctx,bx-14,by-22,gap*3+14,bh+60,5);
+  ctx.fillStyle='rgba(2,6,14,.8)'; ctx.fill();
+  ctx.strokeStyle='#1a3a2a'; ctx.lineWidth=1; ctx.stroke();
+  ctx.font='9px Courier New'; ctx.textAlign='center'; ctx.fillStyle='#3a6a4a';
+  ctx.fillText('μ ABSORPTION',bx+gap,by-10);
+  WAVES.forEach((w,i)=>{
+    const x=bx+i*gap;
+    // Brain bar
+    ctx.fillStyle='#0a1a2a'; ctx.fillRect(x,by,bw*.45,bh);
+    const brainH=Math.min(bh, (w.muT/7)*bh);
+    ctx.fillStyle='#2244aa'; ctx.fillRect(x,by+bh-brainH,bw*.45,brainH);
+    // Blood bar
+    ctx.fillStyle='#1a0808'; ctx.fillRect(x+bw*.55,by,bw*.45,bh);
+    const bloodH=Math.min(bh,(w.muB/15)*bh);
+    ctx.fillStyle=w.col; ctx.fillRect(x+bw*.55,by+bh-bloodH,bw*.45,bloodH);
+    // Labels
+    const fired=waveFired[i];
+    ctx.fillStyle=fired?(fired.correct?'#22c55e':'#ef4444'):w.col;
+    ctx.font=fired?'bold 9px Courier New':'9px Courier New';
+    ctx.fillText(w.nm+'nm',x+bw/2,by+bh+14);
+    if(fired) ctx.fillText(fired.correct?'✓':'✗',x+bw/2,by+bh+26);
+  });
+  ctx.font='8px Courier New'; ctx.fillStyle='#224488'; ctx.fillText('■ brain',bx-8,by+bh+42);
+  ctx.fillStyle='#882222'; ctx.fillText('■ blood',bx+gap*.7,by+bh+42);
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════
+//  SURGERY STATE
+// ════════════════════════════════════════════════
+const ALPHA=0.14;
+const TRT=(d)=>d*d/(4*ALPHA);
+let surgVessels=[], selectedV=null, pulseVal=.2, firingV=null, surgDone=false;
+
+function startSurgery() {
+  GSTATE='SURGERY';
+  unhlAll(); setAction(''); clearCanvasAction();
+  trtRing=null; firingElapsed=0;
+  showStageCard('STAGE 3 — THERMAL RELAXATION TIME','TRT = d²/(4α)  ·  Fire below TRT to seal safely');
+  timerLeft=90; timerMax=90; timerRunning=true;
+  setStageLabel('STAGE 3<br>SURGERY');
+  const W=gc.width, H=gc.height;
+  surgVessels=[
+    {id:0,dmm:.15,trt:TRT(.15),x:W*.22,y:H*.35,label:'A — 150 μm',state:'bleeding',
+     baseX:W*.22,baseY:H*.35,moveAngle:Math.random()*Math.PI*2,moveAmp:30+Math.random()*15,moveSpeed:0.6+Math.random()*0.2,movePhase:Math.random()*Math.PI*2},
+    {id:1,dmm:.30,trt:TRT(.30),x:W*.60,y:H*.25,label:'B — 300 μm',state:'bleeding',
+     baseX:W*.60,baseY:H*.25,moveAngle:Math.random()*Math.PI*2,moveAmp:35+Math.random()*15,moveSpeed:0.5+Math.random()*0.2,movePhase:Math.random()*Math.PI*2},
+    {id:2,dmm:.40,trt:TRT(.40),x:W*.35,y:H*.68,label:'C — 400 μm',state:'bleeding',
+     baseX:W*.35,baseY:H*.68,moveAngle:Math.random()*Math.PI*2,moveAmp:38+Math.random()*15,moveSpeed:0.45+Math.random()*0.2,movePhase:Math.random()*Math.PI*2},
+    {id:3,dmm:.60,trt:TRT(.60),x:W*.72,y:H*.62,label:'D — 600 μm',state:'bleeding',
+     baseX:W*.72,baseY:H*.62,moveAngle:Math.random()*Math.PI*2,moveAmp:42+Math.random()*18,moveSpeed:0.4+Math.random()*0.2,movePhase:Math.random()*Math.PI*2},
+  ];
+  vessels=surgVessels; selectedV=null; pulseVal=.2; firingV=null; surgDone=false;
+  showVesselArrows=true;
+  setNarr("Four vessels are actively bleeding. For each one, calculate TRT = d²/(4α). Click a vessel on screen to target it, set your pulse BELOW its TRT, then fire the laser. Beat the clock.");
+  speak(SCRIPT.surgIntro, true);
+  setFormula(`<div class="fbox">TRT = d² / (4α)</div>
+<div class="frow"><span class="fl">α (brain ≈ blood)</span><span class="fv">0.14 mm²/s</span></div>
+<div class="frow"><span class="fl">Rule</span><span class="fv">Pulse < TRT to seal safely</span></div>
+<div class="frow"><span class="fl">Surface:volume</span><span class="fv">larger vessel = longer TRT</span></div>
+<div style="font-size:9px;color:#7de8b0;margin-top:6px;">TRT ∝ d² — larger vessels hold heat longer before it diffuses out.</div>`);
+  renderSurgCtrl();
+  setAction('Click a bleeding vessel on the screen to target it');
+  setCanvasAction('Click a bleeding vessel to target it');
+  gc.onclick=onSurgClick;
+}
+
+function renderSurgCtrl() {
+  let h=`<div style="font-size:10px;color:#4a6a82;margin-bottom:8px;letter-spacing:1px;">CLICK A VESSEL ON SCREEN — OR SELECT:</div><div style="display:flex;flex-direction:column;gap:5px;">`;
+  surgVessels.forEach(v=>{
+    let cls='vsel-row';
+    if(selectedV===v.id) cls+=' active';
+    if(v.state==='sealed') cls+=' sealed done';
+    if(v.state==='damaged') cls+=' damaged-v done';
+    const trt=v.trt.toFixed(3);
+    const si=v.state==='sealed'?'✓':v.state==='damaged'?'✗':'●';
+    const sc=v.state==='sealed'?'#22c55e':v.state==='damaged'?'#ef4444':'#ef4444';
+    h+=`<div class="${cls}" onclick="selectVessel(${v.id})"><span>${v.label}</span><span style="color:#fbbf24">TRT=${trt}s</span><span style="color:${sc}">${si}</span></div>`;
+  });
+  h+='</div>';
+  if(selectedV!==null&&surgVessels[selectedV].state==='bleeding'){
+    const v=surgVessels[selectedV];
+    const trtv=v.trt;
+    const safe=pulseVal<trtv;
+    h+=`<div class="slider-group"><label>PULSE DURATION (seconds) — must be &lt; ${trtv.toFixed(3)}s</label>
+<input type="range" min="0.01" max="1.50" step="0.01" value="${pulseVal}" oninput="setPulse(this.value)">
+<div id="pulse-display" style="color:${safe?'#22c55e':'#ef4444'}">${pulseVal.toFixed(2)}s — ${safe?'✓ SAFE  (< '+trtv.toFixed(3)+'s TRT)':'⚠ EXCEEDS TRT ('+trtv.toFixed(3)+'s)'}</div></div>
+<div style="margin-top:8px;padding:8px 10px;border:1px solid #1a3a5a;border-radius:4px;background:#020810;font-size:10px;color:#7de8b0;line-height:1.6;">AIM cursor at a vessel and CLICK to fire — pulse must be &lt; TRT</div>`;
+  }
+  setCtrl(h);
+}
+
+window.selectVessel=(id)=>{
+  if(firingV!==null)return;
+  const v=surgVessels[id];
+  if(v.state!=='bleeding')return;
+  selectedV=id;
+  showVesselArrows=false;
+  unhlAll(); setAction(''); clearCanvasAction();
+  setNarr(`Targeting vessel ${v.label}.\n\nTRT = d²/(4α) = (${v.dmm})² ÷ (4 × 0.14) = ${(v.dmm*v.dmm).toFixed(4)} ÷ 0.56 = ${v.trt.toFixed(3)} s\n\nSet pulse BELOW ${v.trt.toFixed(3)} s, then fire.`);
+  speak(SCRIPT.targetVessel, true);
+  renderSurgCtrl();
+  setTimeout(()=>{
+    hl('input[type=range]');
+    setAction(`Set pulse BELOW ${v.trt.toFixed(3)}s (TRT for ${v.label}), then AIM and CLICK vessel`);
+    setCanvasAction(`Pulse must be < ${v.trt.toFixed(3)}s — AIM at vessel and CLICK`);
+  }, 100);
+  // No auto-zoom — keep full brain visible so player can track all vessels
+};
+
+window.setPulse=(val)=>{ pulseVal=parseFloat(val); renderSurgCtrl(); setTimeout(()=>{ hl('input[type=range]'); },50); };
+
+window.fireLaser=(tx, ty)=>{
+  if(firingV!==null||selectedV===null)return;
+  const v=surgVessels[selectedV];
+  if(v.state!=='bleeding')return;
+  firingV=v.id; unhlAll(); setAction(''); clearCanvasAction();
+  const safe=pulseVal<v.trt;
+  const dur=Math.max(pulseVal*1000,400);
+  const beamTX = (tx !== undefined) ? tx : v.x;
+  const beamTY = (ty !== undefined) ? ty : v.y;
+  laserBeam={x1:0,y1:beamTY,x2:beamTX,y2:beamTY,safe,t:0};
+  trtRing={x:v.x,y:v.y,r:v.dmm*90+12+26,trt:v.trt,pulse:pulseVal,elapsed:0,exceeded:false};
+  setCtrl(`<div style="font-size:11px;color:#5ba4ff;padding:8px;text-align:center;letter-spacing:1px;">⚡ LASER ACTIVE — ${safe?'COAGULATING...':'EXCEEDING TRT...'}</div>`);
+  setTimeout(()=>{
+    laserBeam=null; trtRing=null;
+    v.state=safe?'sealed':'damaged';
+    if(safe){
+      addScore(150);
+      spawnBurst(v.x,v.y,'seal');
+      spawnScorePop(v.x,v.y,150);
+      spawnCallout(v.x,v.y-50,'✓ Pulse < TRT — vessel sealed!','#22c55e',2.5,'world');
+      spawnCallout(v.x,v.y-75,'Haemoglobin denatured in 50μm','#4ade80',2.5,'world');
+      setNarr(`Haemostasis on ${v.label}. Pulse (${pulseVal.toFixed(2)}s) < TRT (${v.trt.toFixed(3)}s). Haemoglobin denatured — vessel sealed. Heat never reached the vessel wall boundary.`);
+      speak(SCRIPT.vesselSealed, false);
+      setTimeout(()=> startMicroZoom(v.x, v.y, 'seal', {label:v.label}), 800);
+    } else {
+      addScore(-75); health=Math.max(0,health-12);
+      spawnBurst(v.x,v.y,'damage');
+      spawnScorePop(v.x,v.y,-75);
+      const excess=(pulseVal-v.trt).toFixed(3);
+      spawnCallout(v.x,v.y-50,'✗ TRT EXCEEDED — thermal spread!','#ef4444',3,'world');
+      spawnCallout(v.x,v.y-78,'L=√(4αt) — '+Math.sqrt(4*ALPHA*excess).toFixed(3)+'mm into brain','#fbbf24',3,'world');
+      spawnHeat(v.x,v.y,v.dmm*120+60,false);
+      triggerShake(10,0.5);
+      triggerAlarm(true); setTimeout(()=>triggerAlarm(false),2000);
+      setNarr(`⚠ THERMAL DAMAGE on ${v.label}. Pulse exceeded TRT by ${excess}s. Heat diffused ${Math.sqrt(4*ALPHA*excess).toFixed(3)} mm into surrounding brain tissue. L=√(4αt) predicts exactly this.`);
+      speak(SCRIPT.vesselDamaged, false);
+      setTimeout(()=> startMicroZoom(v.x, v.y, 'damage', {label:v.label}), 800);
+    }
+    firingV=null; selectedV=null;
+    const allDone=surgVessels.every(v=>v.state!=='bleeding');
+    if(allDone){
+      surgDone=true; timerRunning=false; showVesselArrows=false;
+      setTimeout(()=>triggerOutcome(true,''),500);
+    } else {
+      showVesselArrows=true;
+      renderSurgCtrl();
+      setTimeout(()=>{
+        setAction('Click the next bleeding vessel on screen');
+        setCanvasAction('Click the next bleeding vessel to target it');
+      }, 800);
+    }
+  }, dur);
+};
+
+function onSurgClick(e) {
+  if(firingV!==null||GSTATE!=='SURGERY')return;
+  if(e.button===2||e.altKey)return;
+  const rect=gc.getBoundingClientRect();
+  const sx=(e.clientX-rect.left)*(gc.width/rect.width);
+  const sy=(e.clientY-rect.top)*(gc.height/rect.height);
+  const {x:mx,y:my}=screenToWorld(sx,sy);
+
+  // Find nearest bleeding vessel within hit radius
+  let nearest=null, nearestDist=Infinity;
+  surgVessels.forEach(v=>{
+    if(v.state!=='bleeding')return;
+    const hitR=v.dmm*90+18;
+    const d=Math.sqrt((mx-v.x)**2+(my-v.y)**2);
+    if(d<hitR && d<nearestDist){ nearest=v; nearestDist=d; }
+  });
+
+  if(nearest){
+    // Auto-select if not already selected, then fire immediately
+    if(selectedV!==nearest.id){
+      selectedV=nearest.id;
+      showVesselArrows=false;
+      unhlAll(); setAction(''); clearCanvasAction();
+      setNarr(`Targeting vessel ${nearest.label}.\n\nTRT = d²/(4α) = (${nearest.dmm})² ÷ (4 × 0.14) = ${(nearest.dmm*nearest.dmm).toFixed(4)} ÷ 0.56 = ${nearest.trt.toFixed(3)} s\n\nPulse set to ${pulseVal.toFixed(2)}s — firing.`);
+      renderSurgCtrl();
+    }
+    // Fire beam toward vessel's current position from left edge
+    fireLaser(nearest.x, nearest.y);
+  } else {
+    // MISS — no vessel nearby, fire toward click point
+    if(selectedV!==null){
+      // There's a selected vessel but player clicked elsewhere — it's a miss
+      laserBeam={x1:0,y1:my,x2:mx,y2:my,safe:false,t:0};
+      health=Math.max(0,health-10);
+      score-=30;
+      spawnCallout(mx,my,'MISSED — hit brain tissue','#ef4444',2.5,'world');
+      spawnScorePop(mx,my,-30);
+      triggerShake(8,0.4);
+      triggerAlarm(true); setTimeout(()=>triggerAlarm(false),800);
+      setTimeout(()=>{ laserBeam=null; },500);
+    }
+  }
+}
+
+function drawSurgery(dt) {
+  // Update bleeding vessel positions (patrol movement)
+  const t=tick;
+  surgVessels.forEach(v=>{
+    if(v.state!=='bleeding')return;
+    v.x=v.baseX+Math.cos(v.movePhase+t*v.moveSpeed*0.016)*v.moveAmp;
+    v.y=v.baseY+Math.sin(v.movePhase+t*v.moveSpeed*0.016*0.6)*v.moveAmp*0.5;
+  });
+
+  surgVessels.forEach(v=>drawVessel(v,tick,selectedV===v.id));
+  const W=gc.width,H=gc.height;
+
+  // Draw surgical crosshair at mouse position
+  if(GSTATE==='SURGERY'&&firingV===null){
+    const {x:wx,y:wy}=screenToWorld(mouseX,mouseY);
+    // Check if hovering near any bleeding vessel
+    let hovering=null;
+    surgVessels.forEach(v=>{
+      if(v.state!=='bleeding')return;
+      const hitR=v.dmm*90+18;
+      if(Math.sqrt((wx-v.x)**2+(wy-v.y)**2)<hitR) hovering=v;
+    });
+    const chCol=hovering?'#22c55e':'#ef4444';
+    const cr=22;
+    ctx.save();
+    ctx.strokeStyle=chCol;
+    ctx.lineWidth=1.5;
+    ctx.globalAlpha=0.82;
+    // Circle
+    ctx.beginPath();ctx.arc(wx,wy,cr,0,Math.PI*2);ctx.stroke();
+    // Crosshair lines
+    ctx.beginPath();
+    ctx.moveTo(wx-cr-7,wy);ctx.lineTo(wx-4,wy);
+    ctx.moveTo(wx+4,wy);ctx.lineTo(wx+cr+7,wy);
+    ctx.moveTo(wx,wy-cr-7);ctx.lineTo(wx,wy-4);
+    ctx.moveTo(wx,wy+4);ctx.lineTo(wx,wy+cr+7);
+    ctx.stroke();
+    // Pulse label if a vessel is selected
+    if(selectedV!==null&&surgVessels[selectedV]&&surgVessels[selectedV].state==='bleeding'){
+      const sv=surgVessels[selectedV];
+      const safe=pulseVal<sv.trt;
+      const labelText=`${pulseVal.toFixed(2)}s pulse / TRT ${sv.trt.toFixed(3)}s`;
+      ctx.font='bold 10px Courier New';
+      ctx.textAlign='center';
+      ctx.fillStyle=safe?'#22c55e':'#ef4444';
+      ctx.fillText(labelText,wx,wy-cr-12);
+    }
+    ctx.restore();
+  }
+  const sealed=surgVessels.filter(v=>v.state==='sealed').length;
+  const dmgd=surgVessels.filter(v=>v.state==='damaged').length;
+  const bleeding=surgVessels.filter(v=>v.state==='bleeding').length;
+
+  // Bottom HUD bar
+  ctx.fillStyle='rgba(2,6,14,.82)';ctx.fillRect(0,H-38,W,38);
+  ctx.strokeStyle='#0e2a4a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,H-38);ctx.lineTo(W,H-38);ctx.stroke();
+  ctx.textAlign='center';ctx.font='bold 11px Courier New';
+  ctx.fillStyle='#4a6a82';
+  ctx.fillText(`SEALED ${sealed}/4   DAMAGED ${dmgd}   BLEEDING ${bleeding}   SCORE ${score}`,W*.5,H-20);
+  ctx.textAlign='left';
+
+  // TRT formula reminder — top left corner, always visible
+  ctx.save();
+  ctx.globalAlpha=0.75;
+  roundRect(ctx,10,10,220,44,5);
+  ctx.fillStyle='#020810';ctx.fill();ctx.strokeStyle='#fbbf24';ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle='#fbbf24';ctx.font='bold 13px Courier New';ctx.textAlign='left';
+  ctx.fillText('TRT = d² / (4α)',18,29);
+  ctx.fillStyle='#5ba4ff';ctx.font='10px Courier New';
+  ctx.fillText('α = 0.14 mm²/s   Pulse < TRT to seal',18,46);
+  ctx.restore();
+
+  // Live health drain rate
+  if(bleeding>0){
+    const drainPerSec=(bleeding*.012*60).toFixed(1);
+    const flash=0.7+0.3*Math.sin(tick*0.25);
+    ctx.save();ctx.globalAlpha=flash;
+    ctx.font='bold 12px Courier New';ctx.textAlign='right';
+    ctx.fillStyle='#ef4444';
+    ctx.fillText(`▼ ${drainPerSec}% health/min — SEAL VESSELS NOW`,W-12,H-20);
+    ctx.restore();
+  }
+
+  // ICP danger bar — top right
+  ctx.save();
+  const icpFrac=Math.min((icp-8)/52,1);
+  const icpCol=icp>40?'#ef4444':icp>25?'#fbbf24':'#22c55e';
+  roundRect(ctx,W-160,10,148,36,4);
+  ctx.fillStyle='#020810';ctx.fill();ctx.strokeStyle='#1a2a3a';ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle='#1a2a3a';ctx.fillRect(W-155,22,138,10);
+  ctx.fillStyle=icpCol;ctx.fillRect(W-155,22,138*icpFrac,10);
+  ctx.fillStyle=icpCol;ctx.font='bold 10px Courier New';ctx.textAlign='right';
+  ctx.fillText('ICP '+Math.round(icp)+' mmHg',W-12,20);
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════
+//  OUTCOME
+// ════════════════════════════════════════════════
+let outcomeWin=false, outcomeT=0;
+function triggerOutcome(win, reason) {
+  if(GSTATE==='OUTCOME')return;
+  GSTATE='OUTCOME'; timerRunning=false;
+  outcomeWin=win; outcomeT=0;
+  gc.onclick=null; showVesselArrows=false;
+  unhlAll(); setAction(''); clearCanvasAction();
+  if(!win){ HR=0; triggerAlarm(true); }
+  const sealed=surgVessels.filter(v=>v.state==='sealed').length;
+  if(win){
+    setNarr("The patient is stable. You demonstrated that a surgeon is, in a myriad of ways, an applied physicist. The formulas mastered in Physics 4A — diffusion length, Beer-Lambert, Thermal Relaxation Time — are the language of innovation.");
+    setFormula(`<div class="fbox">L = √(4αt)</div>
+<div class="fbox">I(z) = I₀ · e^(−μz)</div>
+<div class="fbox">TRT = d² / (4α)</div>
+<div class="frow"><span class="fl">Vessels sealed</span><span class="fv">${sealed}/4</span></div>
+<div class="frow"><span class="fl">Neural damage</span><span class="fv">minimal</span></div>
+<div class="frow"><span class="fl">Final score</span><span class="fv" style="color:#fbbf24;font-size:14px">${score}</span></div>`);
+    speak(SCRIPT.win, true);
+    showOverlay('PATIENT SAVED',`Outstanding work, surgeon. You applied Selective Photothermolysis correctly — 454nm laser, TRT-calibrated pulses, zero uncontrolled thermal diffusion. Sealed ${sealed}/4 vessels. Score: ${score} pts.\n\n"The 454nm laser is a transformative operative paradigm." — Dr. Christopher Grey`,'PLAY AGAIN');
+    stopAmbient(); playMusic();
+  } else {
+    setNarr("The patient did not survive. The physics was there — L=√(4αt) governs heat spread, Beer-Lambert governs selective absorption, TRT governs timing. Review the principles and try again.");
+    setFormula(`<div class="frow"><span class="fl">Vessels sealed</span><span class="fw">${sealed}/4</span></div>
+<div class="frow"><span class="fl">Reason</span><span class="fw">${reason||'Health depleted'}</span></div>
+<div class="frow"><span class="fl">Score</span><span class="fw">${score}</span></div>`);
+    speak(SCRIPT.lose, true);
+    showOverlay('PATIENT LOST',`${reason}. ${sealed}/4 vessels were sealed. Thermal diffusion exceeded safe limits. Review: TRT = d²/(4α) tells you exactly how long you have. Score: ${score}.\n\nThe physics is the scalpel.`,'TRY AGAIN');
+    stopAmbient(); playMusic();
+  }
+  window.ovAction=()=>{ hideOverlay(); triggerAlarm(false); stopMusic(); resetGame(); };
+}
+
+function drawOutcome() {
+  const W=gc.width,H=gc.height;
+  outcomeT+=.016;
+  surgVessels.forEach(v=>drawVessel(v,tick,false));
+  if(outcomeWin){
+    // Radial bloom
+    const bloom=ctx.createRadialGradient(W*.5,H*.5,0,W*.5,H*.5,Math.min(W,H)*.7);
+    bloom.addColorStop(0,`rgba(34,197,94,${.12*Math.sin(outcomeT*1.2+1)**.5})`);
+    bloom.addColorStop(.5,`rgba(91,164,255,${.08*Math.sin(outcomeT*.9+.5)**.5})`);
+    bloom.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=bloom;ctx.fillRect(0,0,W,H);
+    // Scatter celebration photons
+    for(let i=0;i<3;i++){
+      const px=W*.5+Math.cos(outcomeT*2.3+i*2.1)*W*.35;
+      const py=H*.5+Math.sin(outcomeT*1.7+i*2.1)*H*.3;
+      ctx.beginPath();ctx.arc(px,py,4+2*Math.sin(outcomeT*4+i),0,Math.PI*2);
+      ctx.fillStyle=`rgba(91,164,255,${.6*Math.abs(Math.sin(outcomeT+i))})`;ctx.fill();
+    }
+  } else {
+    // Flatline — red wave across screen
+    const fl=0.25+0.12*Math.sin(outcomeT*1.5);
+    ctx.fillStyle=`rgba(60,0,0,${fl})`;ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle=`rgba(239,68,68,${.35+.2*Math.sin(outcomeT*3)})`;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,H*.5);ctx.lineTo(W,H*.5);ctx.stroke();
+    // Cascading red particles
+    if(tick%4===0){
+      const px=Math.random()*W,py=Math.random()*H*.3;
+      particles.push({x:px,y:py,vx:(Math.random()-.5)*2,vy:1+Math.random()*2,r:2+Math.random()*3,col:'#ef4444',life:1,decay:0.01});
+    }
+  }
+}
+
+// ════════════════════════════════════════════════
+//  RESET
+// ════════════════════════════════════════════════
+function resetGame() {
+  stopVoice();
+  stopMusic();
+  stopAmbient();
+  unhlAll(); setAction(''); clearCanvasAction();
+  score=0; health=100; HR=72; sysBP=120; diaBP=80; spo2=98; brainAct=85; icp=12; brainCache=null;
+  heatRings=[]; bloodDrops=[]; laserBeam=null; photons=[];
+  waveCorrect=false; waveFired=[]; waveBeam=null; waveAnimT=0; waveTestVessel=null; microZoom=null;
+  floatLabels=[]; scorePops=[]; particles=[]; stageCard=null; trtRing=null; formulaFlashes=[];
+  bfMilestones=[false,false,false]; shakeT=0; shakeI=0;
+  neurons.forEach(n=>n.damage=0);
+  timerRunning=false; timerLeft=90;
+  document.getElementById('timer-val').textContent='--:--';
+  gc.onclick=null; showVesselArrows=false;
+  GSTATE='INTRO'; introT=0;
+  setStageLabel('OR-454<br>SIMULATOR');
+  setNarr("Welcome back. The patient needs you. Your Physics 4A knowledge is the only thing standing between this patient and permanent brain damage.");
+  setFormula(''); setCtrl('');
+  showOverlay('OR-454: THE BLUE SCALPEL','Ready for another attempt. Remember: L=√(4αt) governs heat spread. Beer-Lambert governs wavelength selection. TRT=d²/(4α) governs pulse timing. The patient is waiting.','ENTER THE OPERATING ROOM');
+  speak(SCRIPT.intro, false);
+  setTimeout(()=> playMusic(), 800);
+  window.ovAction=()=>{ hideOverlay(); stopMusic(); playAmbient(); speak(SCRIPT.toolIntro, true); startTool(); };
+}
+</script>
+</body>
+</html>
