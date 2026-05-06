@@ -1732,20 +1732,19 @@ showOverlay(
   'A 47-year-old patient has an active intracranial hemorrhage. Standard bipolar electrosurgery is available — but you\'ve studied the physics. You know there\'s a better way.\n\nSeal the bleeding vessels using the 454 nm laser. Your Physics 4A knowledge is the only thing standing between this patient and permanent brain damage.',
   'ENTER THE OPERATING ROOM'
 );
-speak(SCRIPT.intro, false);
 setNarr("Welcome. If you're here, you're likely a Physics 4A student. The formulas you've been studying — L=√(4αt), Beer-Lambert, TRT — are not theoretical constructs. Right now, they are the intangible boundaries of this patient's safety.");
 setFormula(`<div class="frow"><span class="fl">Status</span><span class="fw">ACTIVE HEMORRHAGE</span></div>
 <div class="frow"><span class="fl">Vessels bleeding</span><span class="fw">4</span></div>
 <div class="frow"><span class="fl">Tool available</span><span class="fv">454 nm Laser</span></div>`);
 setCtrl('');
 initVoiceEngine();
-playMusic();
 
 window.ovAction = function() {
   hideOverlay();
-  stopMusic();
-  playAmbient();
-  speak(SCRIPT.toolIntro, true);
+  // First user gesture — safe to start all audio here (browser autoplay policy)
+  playMusic();
+  speak(SCRIPT.intro, false);
+  speak(SCRIPT.toolIntro, false);
   startTool();
 };
 
@@ -1812,6 +1811,7 @@ window.chooseBipolar = function() {
 window.chooseLaser = function() {
   if(toolState==='bipolar_done'||toolState==='choose') {
     stopBipolar();
+    stopMusic(); playAmbient();
     GSTATE='WAVE'; startWave();
   }
 };
@@ -3065,9 +3065,7 @@ function resetGame() {
   setNarr("Welcome back. The patient needs you. Your Physics 4A knowledge is the only thing standing between this patient and permanent brain damage.");
   setFormula(''); setCtrl('');
   showOverlay('OR-454: THE BLUE SCALPEL','Ready for another attempt. Remember: L=√(4αt) governs heat spread. Beer-Lambert governs wavelength selection. TRT=d²/(4α) governs pulse timing. The patient is waiting.','ENTER THE OPERATING ROOM');
-  speak(SCRIPT.intro, false);
-  setTimeout(()=> playMusic(), 800);
-  window.ovAction=()=>{ hideOverlay(); stopMusic(); playAmbient(); speak(SCRIPT.toolIntro, true); startTool(); };
+  window.ovAction=()=>{ hideOverlay(); playMusic(); speak(SCRIPT.intro, false); speak(SCRIPT.toolIntro, false); startTool(); };
 }
 </script>
 </body>
