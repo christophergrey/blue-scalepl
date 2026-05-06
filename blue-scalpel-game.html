@@ -1745,7 +1745,7 @@ window.ovAction = function() {
   playMusic();
   speak(SCRIPT.intro, false);
   speak(SCRIPT.toolIntro, false);
-  setTimeout(()=> stopMusic(), 27000); // fade out after intro voice (26s) finishes
+  setTimeout(()=>{ stopMusic(); playAmbient(); }, 30000); // 2 loops of intro music (15s×2)
   startTool();
 };
 
@@ -1812,7 +1812,7 @@ window.chooseBipolar = function() {
 window.chooseLaser = function() {
   if(toolState==='bipolar_done'||toolState==='choose') {
     stopBipolar();
-    stopMusic(); playAmbient();
+    stopMusic();
     GSTATE='WAVE'; startWave();
   }
 };
@@ -3066,7 +3066,7 @@ function resetGame() {
   setNarr("Welcome back. The patient needs you. Your Physics 4A knowledge is the only thing standing between this patient and permanent brain damage.");
   setFormula(''); setCtrl('');
   showOverlay('OR-454: THE BLUE SCALPEL','Ready for another attempt. Remember: L=√(4αt) governs heat spread. Beer-Lambert governs wavelength selection. TRT=d²/(4α) governs pulse timing. The patient is waiting.','ENTER THE OPERATING ROOM');
-  window.ovAction=()=>{ hideOverlay(); playMusic(); speak(SCRIPT.intro, false); speak(SCRIPT.toolIntro, false); setTimeout(()=> stopMusic(), 27000); startTool(); };
+  window.ovAction=()=>{ hideOverlay(); playMusic(); speak(SCRIPT.intro, false); speak(SCRIPT.toolIntro, false); setTimeout(()=>{ stopMusic(); playAmbient(); }, 30000); startTool(); };
 }
 </script>
 </body>
