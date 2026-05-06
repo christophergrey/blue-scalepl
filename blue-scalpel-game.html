@@ -473,17 +473,11 @@ function _getAmbient() {
 
 function playAmbient() {
   if(voiceMuted) return;
+  if(_ambient && !_ambient.paused) return; // already playing
   clearInterval(_ambientFadeTimer);
   const a = _getAmbient();
-  a.currentTime = 0;
-  a.volume = 0;
+  a.volume = 0.25; // audible immediately, no fade-in delay
   a.play().catch(()=>{});
-  let v = 0;
-  _ambientFadeTimer = setInterval(()=>{
-    v = Math.min(v + 0.005, 0.05);
-    a.volume = v;
-    if(v >= 0.05) clearInterval(_ambientFadeTimer);
-  }, 60);
 }
 
 function stopAmbient() {
