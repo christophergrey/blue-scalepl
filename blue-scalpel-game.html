@@ -476,7 +476,7 @@ function playAmbient() {
   if(_ambient && !_ambient.paused) return; // already playing
   clearInterval(_ambientFadeTimer);
   const a = _getAmbient();
-  a.volume = 0.25; // audible immediately, no fade-in delay
+  a.volume = 0.18;
   a.play().catch(()=>{});
 }
 
