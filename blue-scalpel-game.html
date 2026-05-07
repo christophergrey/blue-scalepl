@@ -636,17 +636,16 @@ let icp=12; // intracranial pressure mmHg baseline
 // ════════════════════════════════════════════════
 //  LAYOUT
 // ════════════════════════════════════════════════
+// _W/_H hold CSS-pixel dimensions used by all game logic
+let _W=0, _H=0;
 function resize() {
   const dpr = window.devicePixelRatio || 1;
   const w=document.getElementById('canvas-wrap');
-  const cw=w.clientWidth, ch=w.clientHeight;
-  // Physical pixels for sharpness, CSS pixels for layout
-  gc.width=cw*dpr; gc.height=ch*dpr;
-  gc.style.width=cw+'px'; gc.style.height=ch+'px';
-  // Reset transform before re-applying scale (resize can be called multiple times)
+  _W=w.clientWidth; _H=w.clientHeight;
+  // Backing store at physical pixels for Retina sharpness
+  gc.width=_W*dpr; gc.height=_H*dpr;
+  gc.style.width=_W+'px'; gc.style.height=_H+'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // Expose CSS-pixel dimensions for all game logic
-  gc.cssWidth=cw; gc.cssHeight=ch;
   const ew=document.getElementById('ekg-wrap');
   ekgC.width=ew.clientWidth*dpr; ekgC.height=ew.clientHeight*dpr;
   ekgC.style.width=ew.clientWidth+'px'; ekgC.style.height=ew.clientHeight+'px';
