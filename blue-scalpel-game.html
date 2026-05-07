@@ -227,7 +227,7 @@ function clearCanvasAction() { canvasAction = ''; }
 function drawActionPrompt() {
   if(!canvasAction) return;
   canvasActionT += 0.04;
-  const W = GW, H = GH;
+  const W = gc.width, H = gc.height;
   const pulse = 0.6 + 0.4 * Math.sin(canvasActionT);
   const alpha = 0.85 * pulse;
   const bw = Math.min(560, W - 40);
@@ -560,14 +560,14 @@ let camZoom = 1.0, camX = 0, camY = 0;
 let panActive = false, panLast = {x:0, y:0};
 const ZOOM_MIN = 1.0, ZOOM_MAX = 12.0;
 
-function applyCamera() { ctx.save(); ctx.translate(GW/2, GH/2); ctx.scale(camZoom, camZoom); ctx.translate(-GW/2 + camX, -GH/2 + camY); }
+function applyCamera() { ctx.save(); ctx.translate(gc.width/2, gc.height/2); ctx.scale(camZoom, camZoom); ctx.translate(-gc.width/2 + camX, -gc.height/2 + camY); }
 function restoreCamera() { ctx.restore(); }
-function screenToWorld(sx, sy) { return { x:(sx-GW/2)/camZoom+GW/2-camX, y:(sy-GH/2)/camZoom+GH/2-camY }; }
+function screenToWorld(sx, sy) { return { x:(sx-gc.width/2)/camZoom+gc.width/2-camX, y:(sy-gc.height/2)/camZoom+gc.height/2-camY }; }
 function clampCamera() { const m=300*camZoom; camX=Math.max(-m,Math.min(m,camX)); camY=Math.max(-m,Math.min(m,camY)); if(camZoom<=1){camX=0;camY=0;} }
 
 function drawZoomHUD() {
   if(camZoom <= 1.05) return;
-  const W=GW;
+  const W=gc.width;
   ctx.save();
   ctx.fillStyle='rgba(4,12,24,.8)'; ctx.fillRect(W-90,8,82,22);
   ctx.strokeStyle='#1a3a5a'; ctx.lineWidth=1; ctx.strokeRect(W-90,8,82,22);
@@ -594,9 +594,9 @@ gc.addEventListener('wheel', (e) => {
   const my=(e.clientY-rect.top)*(1);
   const factor=e.deltaY<0?1.12:1/1.12;
   const nz=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,camZoom*factor));
-  const wx=(mx-GW/2)/camZoom+GW/2-camX;
-  const wy=(my-GH/2)/camZoom+GH/2-camY;
-  camZoom=nz; camX=GW/2-wx-(mx-GW/2)/camZoom; camY=GH/2-wy-(my-GH/2)/camZoom;
+  const wx=(mx-gc.width/2)/camZoom+gc.width/2-camX;
+  const wy=(my-gc.height/2)/camZoom+gc.height/2-camY;
+  camZoom=nz; camX=gc.width/2-wx-(mx-gc.width/2)/camZoom; camY=gc.height/2-wy-(my-gc.height/2)/camZoom;
   clampCamera();
 }, {passive:false});
 gc.addEventListener('mousedown',(e)=>{ if(e.button===2||(e.button===0&&e.altKey)){panActive=true;panLast={x:e.clientX,y:e.clientY};gc.style.cursor='grab';e.preventDefault();} });
@@ -636,31 +636,22 @@ let icp=12; // intracranial pressure mmHg baseline
 // ════════════════════════════════════════════════
 //  LAYOUT
 // ════════════════════════════════════════════════
-// GW/GH = CSS-pixel canvas dimensions used by all game logic
-let GW=800, GH=600;
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
   const w=document.getElementById('canvas-wrap');
-  GW=w.clientWidth; GH=w.clientHeight;
-  // Physical pixels in the backing store = sharp on Retina
-  gc.width=GW*dpr; gc.height=GH*dpr;
-  gc.style.width=GW+'px'; gc.style.height=GH+'px';
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  const ew=document.getElementById('ekg-wrap');
-  ekgC.width=ew.clientWidth*dpr; ekgC.height=ew.clientHeight*dpr;
-  ekgC.style.width=ew.clientWidth+'px'; ekgC.style.height=ew.clientHeight+'px';
-  ekgCtx.setTransform(dpr,0,0,dpr,0,0);
+  gc.width=w.clientWidth; gc.height=w.clientHeight;
+  ekgC.width=document.getElementById('ekg-wrap').clientWidth;
+  ekgC.height=document.getElementById('ekg-wrap').clientHeight;
 }
 window.addEventListener('resize',()=>{
   resize();
   buildNeurons();
   brainCache=null;
   // Reposition all live vessels to their fractional positions after canvas resize
-  if(toolVessel){ toolVessel.x=GW*.5; toolVessel.y=GH*.45; bipolarX=toolVessel.x; bipolarY=toolVessel.y; }
-  if(waveTestVessel){ waveTestVessel.x=GW*.5; waveTestVessel.y=GH*.48; waveTestVessel.baseX=GW*.5; waveTestVessel.baseY=GH*.48; }
+  if(toolVessel){ toolVessel.x=gc.width*.5; toolVessel.y=gc.height*.45; bipolarX=toolVessel.x; bipolarY=toolVessel.y; }
+  if(waveTestVessel){ waveTestVessel.x=gc.width*.5; waveTestVessel.y=gc.height*.48; waveTestVessel.baseX=gc.width*.5; waveTestVessel.baseY=gc.height*.48; }
   if(surgVessels&&surgVessels.length){
     const fracs=[{fx:.22,fy:.35},{fx:.60,fy:.25},{fx:.35,fy:.68},{fx:.72,fy:.55}];
-    surgVessels.forEach((v,i)=>{ if(!fracs[i]) return; v.x=GW*fracs[i].fx; v.y=GH*fracs[i].fy; v.baseX=v.x; v.baseY=v.y; });
+    surgVessels.forEach((v,i)=>{ if(!fracs[i]) return; v.x=gc.width*fracs[i].fx; v.y=gc.height*fracs[i].fy; v.baseX=v.x; v.baseY=v.y; });
   }
 });
 resize();
@@ -670,7 +661,7 @@ resize();
 // ════════════════════════════════════════════════
 function buildNeurons() {
   neurons=[];
-  const W=GW, H=GH, seed=1337;
+  const W=gc.width, H=gc.height, seed=1337;
   function rng(n){ let x=Math.sin(n*seed)*99999; return x-Math.floor(x); }
   for(let i=0;i<80;i++) neurons.push({
     x:rng(i*7.1+1)*W, y:rng(i*3.3+2)*H, r:2.5+rng(i*5.5+3)*2, damage:0,
@@ -783,7 +774,7 @@ function addScore(n){ score+=n; }
 // Built once, reused every frame. Rebuilt on resize.
 let brainCache = null;
 function buildBrainCache() {
-  const W=GW, H=GH;
+  const W=gc.width, H=gc.height;
   const cx=W*.5, cy=H*.5;
   const RX=W*.42, RY=H*.44;
 
@@ -855,7 +846,7 @@ function buildBrainCache() {
 }
 
 function drawBrainBG() {
-  const W=GW,H=GH;
+  const W=gc.width,H=gc.height;
   if(!brainCache||brainCache.cx!==W*.5) buildBrainCache();
   const {cx,cy,RX,RY,sulci,gyriCrest,pialVessels}=brainCache;
 
@@ -1146,7 +1137,7 @@ function flashFormula(text, col='#fbbf24', dur=6) {
 
 function drawFormulaFlashes() {
   if(!formulaFlashes.length) return;
-  const W=GW, H=GH;
+  const W=gc.width, H=gc.height;
   // Only draw most recent flash (avoids stacking)
   const f = formulaFlashes[formulaFlashes.length-1];
   f.t += 0.016;
@@ -1272,7 +1263,7 @@ function drawStageCard(dt){
   const slideIn=Math.min(stageCard.t/0.4,1);
   const slideOut=stageCard.t>stageCard.maxT-0.6?(stageCard.maxT-stageCard.t)/0.6:1;
   const alpha=slideIn*slideOut;
-  const W=GW,cx=W/2;
+  const W=gc.width,cx=W/2;
   const cy=72+(1-slideIn)*-70;
   ctx.save();
   ctx.globalAlpha=alpha;
@@ -1710,7 +1701,7 @@ requestAnimationFrame(mainLoop);
 let introT=0;
 function drawIntro(ts) {
   introT+=0.016;
-  const W=GW,H=GH;
+  const W=gc.width,H=gc.height;
   const flicker=introT<1?.2+.8*Math.random():1;
   ctx.fillStyle=`rgba(5,12,22,${.6*flicker})`; ctx.fillRect(W/2-300,H/2-120,600,220);
   ctx.strokeStyle=`rgba(14,42,74,${flicker})`; ctx.lineWidth=1; ctx.strokeRect(W/2-300,H/2-120,600,220);
@@ -1765,7 +1756,7 @@ function startTool() {
   showStageCard('STAGE 1 — THERMAL DIFFUSION','L = √(4αt)  ·  Why bipolar electrosurgery fails');
   setStageLabel('STAGE 1<br>TOOL SELECT');
   toolState='choose';
-  toolVessel={x:GW*.5, y:GH*.45, dmm:.6, label:'ACTIVE BLEED', state:'bleeding', id:0};
+  toolVessel={x:gc.width*.5, y:gc.height*.45, dmm:.6, label:'ACTIVE BLEED', state:'bleeding', id:0};
   vessels=[toolVessel];
   setNarr("The patient is bleeding. Your first instinct might be bipolar electrosurgery — the legacy tool. It passes current through tissue, inducing resistance heating. But let's examine what the physics tells us about heat spread in the brain.");
   setFormula(`<div class="fbox">L = √(4αt)</div>
@@ -1823,7 +1814,7 @@ window.chooseLaser = function() {
 function stopBipolar() { triggerAlarm(false); laserBeam=null; toolState='done'; }
 
 function drawTool(dt) {
-  const W=GW,H=GH;
+  const W=gc.width,H=gc.height;
   if(toolVessel) drawVessel(toolVessel,tick);
   if(toolState==='bipolar_firing') {
     bipolarT+=dt; bfLiveT=bipolarT;
@@ -1924,7 +1915,7 @@ function startWave() {
   setStageLabel('STAGE 2<br>CALIBRATION');
   waveCorrect=false; waveFired=[]; waveBeam=null; waveAnimT=0; selectedWave=null;
   timerLeft=60; timerMax=60; timerRunning=true;
-  const W0=GW, H0=GH;
+  const W0=gc.width, H0=gc.height;
   waveTestVessel={
     x:W0*.5, y:H0*.48, dmm:.5, label:'TEST VESSEL', state:'bleeding', id:99, bleedTimer:5,
     baseX:W0*.5, baseY:H0*.48,
@@ -2138,7 +2129,7 @@ function drawMicroZoom(dt) {
   const mz=microZoom;
   if(!mz) return;
   mz.t+=dt;
-  const W=GW, H=GH;
+  const W=gc.width, H=gc.height;
   const cx=W*.5, cy=H*.5;
 
   const ZOOM_DUR=3.0, ZOUT_START=mz.totalT-2.0, ZOUT_DUR=2.0;
@@ -2489,7 +2480,7 @@ function microZoomClick(){
 
 function drawWave(dt) {
   waveAnimT+=dt;
-  const W=GW, H=GH;
+  const W=gc.width, H=gc.height;
 
   // Update vessel position (Lissajous patrol)
   if(waveTestVessel && waveTestVessel.baseX!==undefined && !waveBeam && !waveCorrect) {
@@ -2715,7 +2706,7 @@ function startSurgery() {
   showStageCard('STAGE 3 — THERMAL RELAXATION TIME','TRT = d²/(4α)  ·  Fire below TRT to seal safely');
   timerLeft=90; timerMax=90; timerRunning=true;
   setStageLabel('STAGE 3<br>SURGERY');
-  const W=GW, H=GH;
+  const W=gc.width, H=gc.height;
   surgVessels=[
     {id:0,dmm:.15,trt:TRT(.15),x:W*.22,y:H*.35,label:'A — 150 μm',state:'bleeding',
      baseX:W*.22,baseY:H*.35,moveAngle:Math.random()*Math.PI*2,moveAmp:30+Math.random()*15,moveSpeed:0.6+Math.random()*0.2,movePhase:Math.random()*Math.PI*2},
@@ -2894,7 +2885,7 @@ function drawSurgery(dt) {
   });
 
   surgVessels.forEach(v=>drawVessel(v,tick,selectedV===v.id));
-  const W=GW,H=GH;
+  const W=gc.width,H=gc.height;
 
   // Draw surgical crosshair at mouse position
   if(GSTATE==='SURGERY'&&firingV===null){
@@ -3016,7 +3007,7 @@ function triggerOutcome(win, reason) {
 }
 
 function drawOutcome() {
-  const W=GW,H=GH;
+  const W=gc.width,H=gc.height;
   outcomeT+=.016;
   surgVessels.forEach(v=>drawVessel(v,tick,false));
   if(outcomeWin){
