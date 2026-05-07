@@ -590,8 +590,8 @@ const ekgX = ekgC.getContext('2d');
 gc.addEventListener('wheel', (e) => {
   e.preventDefault();
   const rect=gc.getBoundingClientRect();
-  const mx=(e.clientX-rect.left)*(1);
-  const my=(e.clientY-rect.top)*(1);
+  const mx=(e.clientX-rect.left)*(gc.width/rect.width);
+  const my=(e.clientY-rect.top)*(gc.height/rect.height);
   const factor=e.deltaY<0?1.12:1/1.12;
   const nz=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,camZoom*factor));
   const wx=(mx-gc.width/2)/camZoom+gc.width/2-camX;
@@ -611,8 +611,8 @@ gc.addEventListener('click',()=>{ if(microZoom) microZoomClick(); });
 let mouseX=0, mouseY=0;
 gc.addEventListener('mousemove', e => {
   const rect=gc.getBoundingClientRect();
-  mouseX=(e.clientX-rect.left)*(1);
-  mouseY=(e.clientY-rect.top)*(1);
+  mouseX=(e.clientX-rect.left)*(gc.width/rect.width);
+  mouseY=(e.clientY-rect.top)*(gc.height/rect.height);
 });
 
 // patient state
@@ -636,20 +636,11 @@ let icp=12; // intracranial pressure mmHg baseline
 // ════════════════════════════════════════════════
 //  LAYOUT
 // ════════════════════════════════════════════════
-// _W/_H hold CSS-pixel dimensions used by all game logic
-let _W=0, _H=0;
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
   const w=document.getElementById('canvas-wrap');
-  _W=w.clientWidth; _H=w.clientHeight;
-  // Backing store at physical pixels for Retina sharpness
-  gc.width=_W*dpr; gc.height=_H*dpr;
-  gc.style.width=_W+'px'; gc.style.height=_H+'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const ew=document.getElementById('ekg-wrap');
-  ekgC.width=ew.clientWidth*dpr; ekgC.height=ew.clientHeight*dpr;
-  ekgC.style.width=ew.clientWidth+'px'; ekgC.style.height=ew.clientHeight+'px';
-  ekgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  gc.width=w.clientWidth; gc.height=w.clientHeight;
+  ekgC.width=document.getElementById('ekg-wrap').clientWidth;
+  ekgC.height=document.getElementById('ekg-wrap').clientHeight;
 }
 window.addEventListener('resize',()=>{
   resize();
@@ -1999,8 +1990,8 @@ function onWaveClick(e) {
   if(GSTATE!=='WAVE'||waveBeam||selectedWave===null||waveCorrect) return;
   if(microZoom) return;
   const rect=gc.getBoundingClientRect();
-  const sx=(e.clientX-rect.left)*(1);
-  const sy=(e.clientY-rect.top)*(1);
+  const sx=(e.clientX-rect.left)*(gc.width/rect.width);
+  const sy=(e.clientY-rect.top)*(gc.height/rect.height);
   const v=waveTestVessel;
   const hitR=v.dmm*90+22;
   const dist=Math.hypot(sx-v.x, sy-v.y);
@@ -2844,8 +2835,8 @@ function onSurgClick(e) {
   if(firingV!==null||GSTATE!=='SURGERY')return;
   if(e.button===2||e.altKey)return;
   const rect=gc.getBoundingClientRect();
-  const sx=(e.clientX-rect.left)*(1);
-  const sy=(e.clientY-rect.top)*(1);
+  const sx=(e.clientX-rect.left)*(gc.width/rect.width);
+  const sy=(e.clientY-rect.top)*(gc.height/rect.height);
   const {x:mx,y:my}=screenToWorld(sx,sy);
 
   // Find nearest bleeding vessel within hit radius
