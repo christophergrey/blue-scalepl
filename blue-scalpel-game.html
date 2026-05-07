@@ -590,8 +590,8 @@ const ekgX = ekgC.getContext('2d');
 gc.addEventListener('wheel', (e) => {
   e.preventDefault();
   const rect=gc.getBoundingClientRect();
-  const mx=(e.clientX-rect.left)*(gc.width/rect.width);
-  const my=(e.clientY-rect.top)*(gc.height/rect.height);
+  const mx=(e.clientX-rect.left)*(1);
+  const my=(e.clientY-rect.top)*(1);
   const factor=e.deltaY<0?1.12:1/1.12;
   const nz=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,camZoom*factor));
   const wx=(mx-gc.width/2)/camZoom+gc.width/2-camX;
@@ -600,7 +600,7 @@ gc.addEventListener('wheel', (e) => {
   clampCamera();
 }, {passive:false});
 gc.addEventListener('mousedown',(e)=>{ if(e.button===2||(e.button===0&&e.altKey)){panActive=true;panLast={x:e.clientX,y:e.clientY};gc.style.cursor='grab';e.preventDefault();} });
-gc.addEventListener('mousemove',(e)=>{ if(!panActive)return; const rect=gc.getBoundingClientRect(),sx=gc.width/rect.width; camX+=(e.clientX-panLast.x)*sx/camZoom; camY+=(e.clientY-panLast.y)*sx/camZoom; panLast={x:e.clientX,y:e.clientY}; clampCamera(); });
+gc.addEventListener('mousemove',(e)=>{ if(!panActive)return; const rect=gc.getBoundingClientRect(),sx=1; camX+=(e.clientX-panLast.x)*sx/camZoom; camY+=(e.clientY-panLast.y)*sx/camZoom; panLast={x:e.clientX,y:e.clientY}; clampCamera(); });
 gc.addEventListener('mouseup',()=>{ panActive=false; gc.style.cursor=''; });
 gc.addEventListener('mouseleave',()=>{ panActive=false; gc.style.cursor=''; });
 gc.addEventListener('contextmenu',e=>e.preventDefault());
@@ -611,8 +611,8 @@ gc.addEventListener('click',()=>{ if(microZoom) microZoomClick(); });
 let mouseX=0, mouseY=0;
 gc.addEventListener('mousemove', e => {
   const rect=gc.getBoundingClientRect();
-  mouseX=(e.clientX-rect.left)*(gc.width/rect.width);
-  mouseY=(e.clientY-rect.top)*(gc.height/rect.height);
+  mouseX=(e.clientX-rect.left)*(1);
+  mouseY=(e.clientY-rect.top)*(1);
 });
 
 // patient state
@@ -637,10 +637,20 @@ let icp=12; // intracranial pressure mmHg baseline
 //  LAYOUT
 // ════════════════════════════════════════════════
 function resize() {
+  const dpr = window.devicePixelRatio || 1;
   const w=document.getElementById('canvas-wrap');
-  gc.width=w.clientWidth; gc.height=w.clientHeight;
-  ekgC.width=document.getElementById('ekg-wrap').clientWidth;
-  ekgC.height=document.getElementById('ekg-wrap').clientHeight;
+  const cw=w.clientWidth, ch=w.clientHeight;
+  // Physical pixels for sharpness, CSS pixels for layout
+  gc.width=cw*dpr; gc.height=ch*dpr;
+  gc.style.width=cw+'px'; gc.style.height=ch+'px';
+  // Reset transform before re-applying scale (resize can be called multiple times)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Expose CSS-pixel dimensions for all game logic
+  gc.cssWidth=cw; gc.cssHeight=ch;
+  const ew=document.getElementById('ekg-wrap');
+  ekgC.width=ew.clientWidth*dpr; ekgC.height=ew.clientHeight*dpr;
+  ekgC.style.width=ew.clientWidth+'px'; ekgC.style.height=ew.clientHeight+'px';
+  ekgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener('resize',()=>{
   resize();
@@ -1990,8 +2000,8 @@ function onWaveClick(e) {
   if(GSTATE!=='WAVE'||waveBeam||selectedWave===null||waveCorrect) return;
   if(microZoom) return;
   const rect=gc.getBoundingClientRect();
-  const sx=(e.clientX-rect.left)*(gc.width/rect.width);
-  const sy=(e.clientY-rect.top)*(gc.height/rect.height);
+  const sx=(e.clientX-rect.left)*(1);
+  const sy=(e.clientY-rect.top)*(1);
   const v=waveTestVessel;
   const hitR=v.dmm*90+22;
   const dist=Math.hypot(sx-v.x, sy-v.y);
@@ -2835,8 +2845,8 @@ function onSurgClick(e) {
   if(firingV!==null||GSTATE!=='SURGERY')return;
   if(e.button===2||e.altKey)return;
   const rect=gc.getBoundingClientRect();
-  const sx=(e.clientX-rect.left)*(gc.width/rect.width);
-  const sy=(e.clientY-rect.top)*(gc.height/rect.height);
+  const sx=(e.clientX-rect.left)*(1);
+  const sy=(e.clientY-rect.top)*(1);
   const {x:mx,y:my}=screenToWorld(sx,sy);
 
   // Find nearest bleeding vessel within hit radius
